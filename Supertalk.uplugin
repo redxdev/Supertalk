@@ -1,0 +1,38 @@
+{
+	"FileVersion": 3,
+	"Version": 1,
+	"VersionName": "0.1.0",
+	"FriendlyName": "Supertalk",
+	"Description": "Supertalk script importer and runtime",
+	"Category": "Other",
+	"CreatedBy": "MissiveArts LLC",
+	"CreatedByURL": "https://xbloom.io",
+	"DocsURL": "",
+	"MarketplaceURL": "",
+	"SupportURL": "",
+	"CanContainContent": false,
+	"IsBetaVersion": true,
+	"IsExperimentalVersion": false,
+	"Installed": false,
+	"Modules": [
+		{
+			"Name": "Supertalk",
+			"Type": "Runtime",
+			"LoadingPhase": "Default",
+			"AdditionalDependencies": [
+				"MessageLog"
+			]
+		},
+		{
+			"Name": "SupertalkEditor",
+			"Type": "UncookedOnly",
+			"LoadingPhase": "Default",
+			"AdditionalDependencies": [
+				"UnrealEd",
+				"AssetTools",
+				"MessageLog",
+				"Supertalk"
+			]
+		}
+	]
+}

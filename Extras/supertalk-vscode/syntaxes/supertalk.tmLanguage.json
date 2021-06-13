@@ -1,0 +1,150 @@
+{
+	"$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+	"name": "Supertalk",
+	"patterns": [
+		{
+			"include": "#comments"
+		},
+		{
+			"include": "#text"
+		},
+		{
+			"include": "#string-single"
+		},
+		{
+			"include": "#string-double"
+		},
+		{
+			"include": "#section"
+		},
+		{
+			"include": "#command"
+		},
+		{
+			"include": "#attributes"
+		},
+		{
+			"include": "#assign"
+		},
+		{
+			"include": "#asset"
+		}
+	],
+	"repository": {
+		"text": {
+			"name": "meta.supertalk.textline",
+			"begin": "^([ \\t]*)(.*?)(:)",
+			"beginCaptures": {
+				"2": {
+					"patterns": [
+						{
+							"include": "$self"
+						}
+					]
+				},
+				"3": {
+					"name": "keyword.operator.supertalk.text"
+				}
+			},
+			"end": "^(?!\\1[ \\t]+)",
+			"contentName": "string.unquoted.supertalk.text",
+			"patterns": [
+				{
+					"include": "#text-variable"
+				},
+				{
+					"include": "#markup-tag"
+				}
+			]
+		},
+
+		"comments": {
+			"name": "comment.line.double-dash.supertalk",
+			"match": "--.*$"
+		},
+
+		"section": {
+			"name": "entity.name.supertalk.section",
+			"match": "\\s*(#)(.*)$",
+			"captures": {
+				"1": {
+					"name": "keyword.control.supertalk.section"
+				},
+				"2": {
+					"name": "entity.name.type.supertalk.sectionname"
+				}
+			}
+		},
+
+		"assign": {
+			"name": "keyword.operator.supertalk.assign",
+			"match": "="
+		},
+
+		"asset": {
+			"name": "variable.name.supertalk.asset",
+			"match": "/[^\\.>\\[\\]=:,\\n\\r]+"
+		},
+
+		"string-single": {
+			"name": "string.quoted.single",
+			"match": "'[^\\n\\r']*?'"
+		},
+		"string-double": {
+			"name": "string.quoted.double",
+			"match": "\"[^\\n\\r\"]*?\""
+		},
+
+		"command": {
+			"name": "supertalk.command",
+			"match": "^\\s*(>)\\s*([^\\s]*)(.*)$",
+			"captures": {
+				"1": {
+					"name": "keyword.operator.supertalk.command"
+				},
+				"2": {
+					"name": "entity.name.function.supertalk.command"
+				},
+				"3": {
+					"name": "meta.parameter"
+				}
+			}
+		},
+
+		"attributes": {
+			"name": "supertalk.attributes",
+			"begin": "\\[",
+			"end": "\\]",
+			"patterns": [
+				{
+					"match": "[^,\\]]+",
+					"name": "variable.name"
+				}
+			],
+			"captures": {
+				"2": {
+					"name": "string.other.supertalk.attribute"
+				},
+				"4": {
+					"name": "string.other.supertalk.attribute"
+				}
+			}
+		},
+
+		"text-variable": {
+			"name": "supertalk.text.variable",
+			"match": "{(.*?)}",
+			"captures": {
+				"1": {
+					"name": "variable.other.supertalk.text"
+				}
+			}
+		},
+
+		"markup-tag": {
+			"name": "entity.name.tag",
+			"match": "<([^\\n/>]*)/?>"
+		}
+	},
+	"scopeName": "source.supertalk"
+}

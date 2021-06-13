@@ -1,0 +1,588 @@
+﻿// Copyright (c) MissiveArts LLC
+
+#include "SupertalkPlayer.h"
+#include "Supertalk.h"
+#include "SupertalkValue.h"
+#include "EditorFramework/AssetImportData.h"
+#include "Logging/MessageLog.h"
+
+#define LOCTEXT_NAMESPACE "Supertalk"
+
+#if WITH_EDITORONLY_DATA
+void USupertalkScript::PostInitProperties()
+{
+	if (!HasAnyFlags(RF_ClassDefaultObject))
+	{
+		AssetImportData = NewObject<UAssetImportData>(this, TEXT("AssetImportData"));
+	}
+
+	Super::PostInitProperties();
+}
+
+void USupertalkScript::GetAssetRegistryTags(TArray<FAssetRegistryTag>& OutTags) const
+{
+	if (AssetImportData)
+	{
+		OutTags.Add(FAssetRegistryTag(SourceFileTagName(), AssetImportData->GetSourceData().ToJson(), FAssetRegistryTag::TT_Hidden));
+	}
+
+	Super::GetAssetRegistryTags(OutTags);
+}
+
+void USupertalkScript::Serialize(FArchive& Ar)
+{
+	Super::Serialize(Ar);
+
+	if (Ar.IsLoading() && Ar.UE4Ver() < VER_UE4_ASSET_IMPORT_DATA_AS_JSON && !AssetImportData)
+	{
+		// AssetImportData should always be valid
+		AssetImportData = NewObject<UAssetImportData>(this, TEXT("AssetImportData"));
+	}
+}
+#endif
+
+#if WITH_EDITOR
+void USupertalkScript::OpenSourceFileInExternalProgram()
+{
+	if (AssetImportData)
+	{
+		const FString Filename = AssetImportData->GetFirstFilename();
+		if (FPaths::FileExists(Filename))
+		{
+			FPlatformProcess::LaunchFileInDefaultExternalApplication(*Filename);
+		}
+	}
+}
+#endif
+
+USupertalkPlayer::USupertalkPlayer()
+{
+	NextActionId = 1;
+	NextStackId = 1;
+}
+
+void USupertalkPlayer::SetVariable(FName Name, USupertalkValue* Value)
+{
+	if (!IsValid(Value))
+	{
+		Variables.Remove(Name);
+	}
+	else
+	{
+		// We don't allow aliasing (pointers/references), so always resolve values.
+		Variables.Add(Name, const_cast<USupertalkValue*>(Value->GetResolvedValue(this)));
+	}
+}
+
+const USupertalkValue* USupertalkPlayer::GetVariable(FName Name) const
+{
+	const TObjectPtr<USupertalkValue>* Value = Variables.Find(Name);
+	if (Value != nullptr)
+	{
+		return *Value;
+	}
+
+	return GetExternalVariable(Name);
+}
+
+void USupertalkPlayer::ClearVariables()
+{
+	Variables.Empty();
+}
+
+void USupertalkPlayer::AddFunctionCallReceiver(UObject* Obj)
+{
+	check(Obj);
+	FunctionCallReceivers.AddUnique(Obj);
+}
+
+void USupertalkPlayer::RunScript(const USupertalkScript* Script, FName InitialSection)
+{
+	FMessageLog MessageLog(SupertalkMessageLogName);
+	
+	if (ensureAlwaysMsgf(!IsRunningScript(), TEXT("Cannot run a script on a USupertalkPlayer when a script is already running")))
+	{
+		if (!IsValid(Script))
+		{
+			UE_LOG(LogSupertalk, Error, TEXT("Cannot run invalid script"));
+			return;
+		}
+	
+		if (InitialSection == NAME_None)
+		{
+			InitialSection = Script->DefaultSection;
+		}
+
+		const FSupertalkSection* Section = Script->Sections.Find(InitialSection);
+		if (Section == nullptr)
+		{
+			MessageLog.Error(FText::Format(LOCTEXT("UnknownSectionError", "Unable to find section '{0}' in script '{1}"), FText::FromName(InitialSection), FText::FromString(Script->GetName())));
+			return;
+		}
+	
+		if (Section->Actions.Num() == 0)
+		{
+			MessageLog.Warning(FText::Format(LOCTEXT("NoActionsWarning", "Section '{0}' in script '{1}' has no actions"), FText::FromName(Section->Name), FText::FromString(Script->GetName())));
+			return;
+		}
+		
+		FSupertalkStack& Stack = CreateNewStack();
+		
+		PushActions(Stack.StackId, Script, Section->Actions);
+		TickStack(Stack.StackId);
+	}
+	else
+	{
+		MessageLog.Error(LOCTEXT("ScriptAlreadyRunningError", "Cannot run a script on a USupertalkPlayer when a script is already running"));
+	}
+}
+
+void USupertalkPlayer::Stop()
+{
+	Stacks.Empty();
+}
+
+FSupertalkLatentFunctionFinalizer USupertalkPlayer::MakeLatentFunction()
+{
+	if (CurrentFunctionFinalizer && !bIsFunctionCallLatent)
+	{
+		bIsFunctionCallLatent = true;
+		return *CurrentFunctionFinalizer;
+	}
+
+	return FSupertalkLatentFunctionFinalizer();
+}
+
+void USupertalkPlayer::CompleteFunction(FSupertalkLatentFunctionFinalizer Finalizer)
+{
+	Finalizer.Complete();
+}
+
+const USupertalkValue* USupertalkPlayer::GetExternalVariable(FName Name) const
+{
+	return nullptr;
+}
+
+void USupertalkPlayer::OnPlayLine(const FSupertalkLine& Line, FSupertalkEventCompletedDelegate Completed)
+{
+	FMessageLog MessageLog(SupertalkMessageLogName);
+	
+	if (OnPlayLineEvent.IsBound())
+	{
+		OnPlayLineEvent.Execute(Line, Completed);
+	}
+	else
+	{
+		MessageLog.Warning(LOCTEXT("OnPlayLineUnimplemented", "OnPlayLine has not been implemented"));
+		Completed.ExecuteIfBound();
+	}
+}
+
+void USupertalkPlayer::OnPlayChoice(const FSupertalkLine& Line, const TArray<FText>& Choices, FSupertalkChoiceCompletedDelegate Completed)
+{
+	FMessageLog MessageLog(SupertalkMessageLogName);
+	
+	if (OnPlayChoiceEvent.IsBound())
+	{
+		OnPlayChoiceEvent.Execute(Line, Choices, Completed);
+	}
+	else
+	{
+		MessageLog.Warning(LOCTEXT("OnPlayChoiceUnimplemented", "OnPlayChoice has not been implemented"));
+		Completed.ExecuteIfBound(INDEX_NONE);
+	}
+}
+
+FSupertalkStack& USupertalkPlayer::CreateNewStack()
+{
+	FSupertalkStack Stack;
+	Stack.StackId = GetNewStackId();
+	return Stacks.Add(Stack.StackId, Stack);
+}
+
+uint32 USupertalkPlayer::GetNewActionId()
+{
+	const uint32 NewId = NextActionId++;
+	if (NextActionId == 0)
+	{
+		NextActionId = 1;
+	}
+
+	return NewId;
+}
+
+uint32 USupertalkPlayer::GetNewStackId()
+{
+	const uint32 NewId = NextStackId++;
+	if (NextStackId == 0)
+	{
+		NextStackId = 1;
+	}
+
+	return NewId;
+}
+
+void USupertalkPlayer::PushActions(uint32 StackId, const USupertalkScript* Script, const TArray<FSupertalkAction>& Actions)
+{
+	check(Script);
+	check(Actions.Num() > 0);
+
+	FSupertalkStack& Stack = Stacks.FindChecked(StackId);
+	Stack.QueuedActions.Reserve(Stack.QueuedActions.Num() + Actions.Num());
+	for (int32 Idx = Actions.Num() - 1; Idx >= 0; --Idx)
+	{
+		const FSupertalkAction& Action = Actions[Idx]; 
+		PushAction(Stack, Script, Action);
+	}
+}
+
+void USupertalkPlayer::PushAction(FSupertalkStack& Stack, const USupertalkScript* Script, const FSupertalkAction& Action)
+{
+	check(Script);
+
+	FSupertalkActionWithContext Context;
+	Context.Source = Script;
+	Context.Action = Action;
+	Context.Key.StackId = Stack.StackId;
+	Context.Key.ActionId = GetNewActionId();
+	Stack.QueuedActions.Add(Context);
+}
+
+void USupertalkPlayer::CompleteActionAndTick(FSupertalkActionKey Key)
+{
+	CompleteAction(Key);
+	TickStack(Key.StackId);
+}
+
+void USupertalkPlayer::CompleteAction(FSupertalkActionKey Key)
+{
+	FSupertalkStack* Stack = Stacks.Find(Key.StackId);
+	if (Stack == nullptr)
+	{
+		UE_LOG(LogSupertalk, Warning, TEXT("CompleteAction called with unknown stack id %u"), Key.StackId);
+		return;
+	}
+
+	if (!Key.IsValid() || Stack->ActiveAction.Key != Key)
+	{
+		UE_LOG(LogSupertalk, Warning, TEXT("CompleteAction called with unknown action id %u (stack %u expects %u)"), Key.ActionId, Key.StackId, Stack->ActiveAction.Key.ActionId);
+		return;
+	}
+
+	Stack->ActiveAction = FSupertalkActionWithContext();
+}
+
+void USupertalkPlayer::TickStack(uint32 StackId)
+{
+	FSupertalkStack* Stack = Stacks.Find(StackId);
+	if (Stack == nullptr)
+	{
+		UE_LOG(LogSupertalk, Error, TEXT("TickStack called with unknown stack id %u"), StackId);
+		return;
+	}
+	
+	// Prevent recursive ticking
+	if (Stack->bIsTicking)
+	{
+		return;
+	}
+
+	Stack->bIsTicking = true;
+	
+	while (Stack != nullptr && !Stack->ActiveAction.Key.IsValid() && Stack->WaitingOn.Num() == 0)
+	{
+		if (Stack->QueuedActions.Num() > 0)
+		{
+			Stack->ActiveAction = Stack->QueuedActions.Last();
+			Stack->QueuedActions.RemoveAt(Stack->QueuedActions.Num() - 1);
+		
+			ExecuteAction(Stack->ActiveAction);
+		}
+		else
+		{
+			uint32 ExitingId = Stack->StackId;
+			uint32 WaitingId = Stack->SourceId;
+			
+			Stacks.Remove(StackId);
+			Stack = nullptr;
+			
+			if (WaitingId != 0)
+			{
+				FinishWaitingOnStack(ExitingId, WaitingId);
+			}
+
+			break;
+		}
+
+		// Need to re-find just in case Stacks was modified during execution.
+		Stack = Stacks.Find(StackId);
+	}
+
+	if (Stack != nullptr)
+	{
+		Stack->bIsTicking = false;
+	}
+}
+
+void USupertalkPlayer::ExecuteAction(const FSupertalkActionWithContext& Context)
+{
+	check(Context.Source);
+	check(Stacks.Contains(Context.Key.StackId));
+	check(Stacks[Context.Key.StackId].ActiveAction.Key == Context.Key);
+
+	switch (Context.Action.Operation)
+	{
+	default:
+		checkNoEntry();
+		// fall-through on purpose, count this as a no-op if checks are disabled.
+
+	case ESupertalkOperation::Noop:
+		CompleteAction(Context.Key);
+		break;
+
+	case ESupertalkOperation::Line:
+		HandlePlayLine(Context);
+		break;
+
+	case ESupertalkOperation::Choice:
+		HandlePlayChoice(Context);
+		break;
+
+	case ESupertalkOperation::Assign:
+		HandleAssign(Context);
+		break;
+
+	case ESupertalkOperation::Call:
+		HandleCall(Context);
+		break;
+
+	case ESupertalkOperation::Jump:
+		HandleJump(Context);
+		break;
+
+	case ESupertalkOperation::Parallel:
+		HandleParallel(Context);
+		break;
+
+	case ESupertalkOperation::Queue:
+		HandleQueue(Context);
+		break;
+	}
+}
+
+void USupertalkPlayer::HandlePlayLine(const FSupertalkActionWithContext& Context)
+{
+	USupertalkPlayLineParams* Params = CastChecked<USupertalkPlayLineParams>(Context.Action.Params);
+	
+	FSupertalkEventCompletedDelegate Completed;
+	Completed.BindUObject(this, &ThisClass::CompleteActionAndTick, Context.Key);
+	
+	OnPlayLine(Params->Line, Completed);
+}
+
+void USupertalkPlayer::HandlePlayChoice(const FSupertalkActionWithContext& Context)
+{
+	USupertalkPlayChoiceParams* Params = CastChecked<USupertalkPlayChoiceParams>(Context.Action.Params);
+	check(Params->Choices.Num() > 0);
+	
+	FSupertalkChoiceCompletedDelegate Completed;
+	Completed.BindUObject(this, &ThisClass::ReceiveChoice, Context.Key);
+
+	TArray<FText> Choices;
+	Choices.Reserve(Params->Choices.Num());
+	
+	for (const FSupertalkChoice& Choice : Params->Choices)
+	{
+		Choices.Add(Choice.Text);
+	}
+	
+	OnPlayChoice(Params->Line, Choices, Completed);
+}
+
+void USupertalkPlayer::ReceiveChoice(int32 ChoiceIndex, FSupertalkActionKey Key)
+{
+	FSupertalkStack* Stack = Stacks.Find(Key.StackId);
+	if (Stack == nullptr)
+	{
+		UE_LOG(LogSupertalk, Warning, TEXT("ReceiveChoice called with unknown stack id %u"), Key.StackId);
+		return;
+	}
+
+	if (!Key.IsValid() || Stack->ActiveAction.Key != Key)
+	{
+		UE_LOG(LogSupertalk, Warning, TEXT("ReceiveChoice called with unknown action id %u (stack %u expects %u)"), Key.ActionId, Key.StackId, Stack->ActiveAction.Key.ActionId);
+		return;
+	}
+
+	USupertalkPlayChoiceParams* Params = CastChecked<USupertalkPlayChoiceParams>(Stack->ActiveAction.Action.Params);
+	if (ChoiceIndex < 0)
+	{
+		CompleteActionAndTick(Key);
+		return;
+	}
+	
+	if (ChoiceIndex >= Params->Choices.Num())
+	{
+		UE_LOG(LogSupertalk, Error, TEXT("ReceiveChoice called with invalid choice index %d (expected < %d)"), ChoiceIndex, Params->Choices.Num());
+	}
+
+	const FSupertalkChoice& Choice = Params->Choices[ChoiceIndex];
+	PushAction(*Stack, Stack->ActiveAction.Source, Choice.SubAction);
+	
+	CompleteActionAndTick(Key);
+}
+
+void USupertalkPlayer::HandleAssign(const FSupertalkActionWithContext& Context)
+{
+	USupertalkAssignParams* Params = CastChecked<USupertalkAssignParams>(Context.Action.Params);
+	SetVariable(Params->Variable, Params->Value);
+
+	// Not necessary to tick, this can only happen as the result of an ongoing tick.
+	CompleteAction(Context.Key);
+}
+
+void USupertalkPlayer::HandleCall(const FSupertalkActionWithContext& Context)
+{
+	FMessageLog MessageLog(SupertalkMessageLogName);
+	
+	USupertalkCallParams* Params = CastChecked<USupertalkCallParams>(Context.Action.Params);
+	
+	if (!ensure(!CurrentFunctionFinalizer))
+	{
+		MessageLog.Error(FText::Format(LOCTEXT("EventCallFinalizerExists", "Finalizer already set, was there a recursive event call? Skipping function call: {0}"), FText::FromString(Params->Arguments)));
+		CompleteAction(Context.Key);
+		return;
+	}
+
+	FSupertalkLatentFunctionFinalizer Finalizer;
+	Finalizer.Completed.BindUObject(this, &ThisClass::CompleteActionAndTick, Context.Key);
+	CurrentFunctionFinalizer = &Finalizer;
+	bIsFunctionCallLatent = false;
+
+	bool bCalledFunction = false;
+	for (UObject* Receiver : FunctionCallReceivers)
+	{
+		if (Receiver->CallFunctionByNameWithArguments(*Params->Arguments, *GLog, nullptr, true))
+		{
+			bCalledFunction = true;
+			break;
+		}
+	}
+	
+	CurrentFunctionFinalizer = nullptr;
+
+	if (!bCalledFunction)
+	{
+		MessageLog.Error(FText::Format(LOCTEXT("FunctionCallFail", "Failed to call function from script: {0}"), FText::FromString(Params->Arguments)));
+		CompleteAction(Context.Key);
+		return;
+	}
+
+	if (!bIsFunctionCallLatent)
+	{
+		// MakeLatentFunction was not called, complete this event immediately
+		CompleteAction(Context.Key);
+	}
+}
+
+void USupertalkPlayer::HandleJump(const FSupertalkActionWithContext& Context)
+{
+	check(Context.Source);
+	
+	FMessageLog MessageLog(SupertalkMessageLogName);
+	
+	USupertalkJumpParams* Params = CastChecked<USupertalkJumpParams>(Context.Action.Params);
+
+	FSupertalkStack* Stack = Stacks.Find(Context.Key.StackId);
+	if (Stack == nullptr)
+	{
+		UE_LOG(LogSupertalk, Error, TEXT("Cannot jump using unknown stack %u"), Context.Key.StackId);
+		CompleteAction(Context.Key);
+		return;
+	}
+
+	if (Params->JumpTarget == NAME_None)
+	{
+		// Forcefully end this stack
+		Stack->QueuedActions.Empty();
+		CompleteAction(Context.Key);
+		return;
+	}
+	
+	const FSupertalkSection* NewSection = Context.Source->Sections.Find(Params->JumpTarget);
+	if (NewSection == nullptr)
+	{
+		MessageLog.Error(FText::Format(LOCTEXT("JumpSectionError", "Cannot jump to unknown section '{0}'"), FText::FromName(Params->JumpTarget)));
+		CompleteAction(Context.Key);
+		return;
+	}
+
+	Stack->QueuedActions.Empty();
+	PushActions(Stack->StackId, Context.Source, NewSection->Actions);
+	CompleteAction(Context.Key);
+}
+
+void USupertalkPlayer::HandleParallel(const FSupertalkActionWithContext& Context)
+{
+	USupertalkParallelParams* Params = CastChecked<USupertalkParallelParams>(Context.Action.Params);
+	if (Params->SubActions.Num() == 0)
+	{
+		UE_LOG(LogSupertalk, Warning, TEXT("Parallel action with no subactions, skipped"));
+		CompleteAction(Context.Key);
+		return;
+	}
+
+	FSupertalkStack* SourceStack = Stacks.Find(Context.Key.StackId);
+	if (SourceStack == nullptr)
+	{
+		UE_LOG(LogSupertalk, Error, TEXT("Unknown stack %u when setting up parallel execution"), Context.Key.StackId);
+		CompleteAction(Context.Key);
+		return;
+	}
+
+	for (const FSupertalkAction& Action : Params->SubActions)
+	{
+		FSupertalkStack& Stack = CreateNewStack();
+		Stack.SourceId = SourceStack->StackId;
+		SourceStack->WaitingOn.Add(Stack.StackId);
+
+		PushAction(Stack, Context.Source, Action);
+		TickStack(Stack.StackId);
+	}
+
+	CompleteAction(Context.Key);
+}
+
+void USupertalkPlayer::FinishWaitingOnStack(uint32 ExitingId, uint32 WaitingId)
+{
+	FSupertalkStack* Stack = Stacks.Find(WaitingId);
+	if (Stack == nullptr)
+	{
+		UE_LOG(LogSupertalk, Error, TEXT("FinishWaitingOnStack was given an invalid WaitingId of %u"), WaitingId);
+		return;
+	}
+
+	if (!Stack->WaitingOn.Remove(ExitingId))
+	{
+		UE_LOG(LogSupertalk, Error, TEXT("FinishWaitingOnStack was given an invalid ExitingId of %u for stack %u"), ExitingId, WaitingId);
+		return;
+	}
+
+	TickStack(WaitingId);
+}
+
+void USupertalkPlayer::HandleQueue(const FSupertalkActionWithContext& Context)
+{
+	USupertalkQueueParams* Params = CastChecked<USupertalkQueueParams>(Context.Action.Params);
+	if (Params->SubActions.Num() == 0)
+	{
+		UE_LOG(LogSupertalk, Warning, TEXT("Queue with no subactions, skipped"));
+		CompleteAction(Context.Key);
+		return;
+	}
+
+	PushActions(Context.Key.StackId, Context.Source, Params->SubActions);
+	CompleteAction(Context.Key);
+}
+
+#undef LOCTEXT_NAMESPACE
