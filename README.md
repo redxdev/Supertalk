@@ -176,7 +176,10 @@ This is the main asset type for Supertalk.
 #### `FSupertalkLine`
 
 Dialogue lines are emitted via this struct. It contains a value representing who is speaking the line, a value for a name override for the
-speaker, a list of attributes applied to the line, 
+speaker, a list of attributes applied to the line, and the text itself.
+
+Generally you'll want to call `FSupertalkLine::FormatText` to get the text for display, as this will replace any variable placeholders in the
+line with data from the Supertalk player.
 
 #### `USupertalkValue`
 
