@@ -46,6 +46,13 @@ Person1: Hello, world!
 -- You can use FString::Format syntax to reference variables.
 Person2: Hello, {Person2}!
 
+-- Data tables with a row type of FSupertalkTableRow can be used to share textual data across scripts.
+-- Rows can be accessed via a "." - types other than data tables may also support this syntax, see the
+-- integration guide for details.
+MyDataTable = /Game/MyGame/Data/SomeDataTable
+
+Person2: My datatable says {MyDataTable.Key1} and {MyDataTable.Key2}!
+
 -- You can pass just a string as a speaker's name
 "Some third person": I'm not predefined in a variable!
 
@@ -61,8 +68,8 @@ Person1,"An alternate name": I'm still {Person1} but with a different name.
 -- which portrait should be displayed.
 Person2 [Left, Sad]: I'm sad now :(
 
--- You can add linebreaks freely without breaking up the dialogue lines after the first one indented. Line breaks
--- will only be added to the final output if you have an empty line (a la markdown).
+-- You can add linebreaks freely without breaking up the dialogue lines after the first one as long as they are
+-- indented. Line breaks will only be added to the final output if you have an empty line (a la markdown).
 Person1: This sentence will span
          multiple lines in the script
          but will appear as a single
