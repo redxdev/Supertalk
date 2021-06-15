@@ -150,6 +150,8 @@ Person1: That's the end of the supertalk script overview. Goodbye for now!
 
 A basic syntax highlighting extension for Visual Studio Code can be found in the `Extras` directory.
 
+![image](https://user-images.githubusercontent.com/472625/121821540-88d35a00-cc4e-11eb-9910-64d69edc6012.png)
+
 ## Integration Guide
 
 This is an overview of the work necessary to integrate Supertalk into a project.
