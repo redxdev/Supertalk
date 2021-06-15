@@ -16,10 +16,13 @@ public class Supertalk : ModuleRules
 				"Engine",
 			});
 
-		PrivateDependencyModuleNames.AddRange(
-			new string[]
-			{
-				"MessageLog",
-			});
+		if (Target.Configuration != UnrealTargetConfiguration.Shipping)
+		{
+			PrivateDependencyModuleNames.AddRange(
+				new string[]
+				{
+					"MessageLog",
+				});
+		}
 	}
 }
