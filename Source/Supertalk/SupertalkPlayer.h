@@ -300,7 +300,7 @@ public:
 	UFUNCTION(BlueprintCallable)
 	FSupertalkLatentFunctionFinalizer MakeLatentFunction();
 
-	UFUNCTION(BlueprintCallable)
+	UFUNCTION(BlueprintCallable, meta = (ScriptMethod))
 	static void CompleteFunction(FSupertalkLatentFunctionFinalizer Finalizer);
 	
 protected:
