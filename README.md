@@ -14,14 +14,17 @@ its usages of `TObjectPtr`.
 with no UI. While it does integrate well with blueprint, initial integration with a game requires knowledge of C++ and no
 support will be offered beyond this documentation.
 
-## Known Issues
+## Known Issues / TODOs
 
-* Currently there is no syntax to assign namespaces/keys for dialogue text for i18n. This is planned for some point in the future.
-* Recursive calls into `USupertalkPlayer::PlayScript` are not currently allowed, though they should technically be possible. This
+* Issue: Recursive calls into `USupertalkPlayer::PlayScript` are not currently allowed, though they should technically be possible. This
   somewhat limits how dynamic scripts can be (you can't change what section is playing based on external data) but this will be
   fixed in the future.
-* The way the supertalk parser/importer emits errors is a bit odd, haven't quite figured out how to deal with the message log the
+* Issue: The way the supertalk parser/importer emits errors is a bit odd, haven't quite figured out how to deal with the message log the
   right way. It generally works fine but might not be implemented the "right" way.
+* Issue: Localization support hasn't been very well tested.
+* TODO: There's no sample project (yet) :(
+* TODO: Tool to automatically insert localization markup in script files.
+* TODO: Support for escape sequences in strings.
 
 ## Scripting Syntax + Features
 
@@ -136,9 +139,33 @@ Person2: I'm in section 3!
 # Section4
 
 Person2: I'm in section 4!
--> Section5
+-> Localization
 
-# Section5
+# Localization
+
+-- Adding '@' after the list of attributes (if they exist) will be used as the key for the dialogue line, for use in i18n. Keys are any arbitrary value that are used to
+-- lookup alternative translations - see https://docs.unrealengine.com/4.26/en-US/ProductionPipelines/Localization/Formatting/ for more information.
+-- If you don't specify a key, one will be automatically assigned by Unreal. Unfortunately, if the line changes, so will the assigned id. As such,
+-- you should always assign keys to any line that can be localized.
+-- At some point a tool to auto-generate keys and insert them into supertalk scripts would be nice but it doesn't currently exist.
+Person1 [Happy] @L01A: This line could be translated!
+
+-- Namespaces can be specified by separating them from the key with '/'
+-- If a namespace isn't specified, the default namespace "Supertalk.Script.Default" will be used.
+Person1 [Sad] @Dialogue.Example/L01B: This line could also be translated!
+
+-- String literals (which are stored internally as FText anyway) can be given localization keys as well, with the same syntax.
+MyLocalizedString = @Dialogue.Example/L01C "I'm a string literal that can be localized!"
+
+-- You can apply a single namespace to everything below it with a "namespace directive".
+-- This applies regardless of section due to namespace directives being resolved at import time rather than runtime.
+-- Specifying a namespace directly (such as in the previous two examples) will override this directive for that line of dialogue.
+!namespace Dialogue.Example
+
+-- That's it for localization!
+-> TheEnd
+
+# TheEnd
 
 Person1: That's the end of the supertalk script overview. Goodbye for now!
 

@@ -32,7 +32,9 @@ enum class ESupertalkTokenType : uint8
     ParallelEnd,
     QueueStart,
     QueueEnd,
-	StatementEnd
+	StatementEnd,
+	LocalizationKey,
+	Directive
 };
 
 /**
@@ -63,11 +65,14 @@ private:
 		FTokenContext Context;
 		ESupertalkTokenType Type = ESupertalkTokenType::Unknown;
 		FString Content;
+		FString Namespace;
 		int32 Indentation;
 
 		FText GetDisplayName() const;
 
 		bool IsIgnorable() const;
+
+		FString GetGeneratedLocalizationKey() const;
 	};
 
 	struct FLxStream
@@ -137,6 +142,8 @@ private:
 
 		USupertalkScript* Script;
 
+		FString DefaultNamespace;
+
 		// Used for checking that all jumps are valid later.
 		TArray<TTuple<FToken, FName>> Jumps;
 	};
@@ -165,6 +172,8 @@ private:
 	bool LxTokenText(FLxContext& InCtx, FToken& OutText, ETextParseMode Mode);
 	bool LxTokenAsset(FLxContext& InCtx, FToken& OutAsset);
 	bool LxTokenComment(FLxContext& InCtx, FToken& OutComment);
+	bool LxTokenDirective(FLxContext& InCtx, FToken& OutDirective);
+	bool LxTokenLocalizationKey(FLxContext& InCtx, FToken& OutLocalizationKey);
 
 	void ParseTokenError(const FPaContext& InCtx, const FToken& Token, ESupertalkTokenType ExpectedTokenType) const;
 	void ParseTokenError(const FPaContext& InCtx, const FToken& Token, const FString& Expected) const;
@@ -177,6 +186,9 @@ private:
 	bool PaSection(FPaContext& InCtx, FName Name);
 	
 	bool PaAction(FPaContext& InCtx, FSupertalkAction& OutAction);
+	
+	bool PaDirective(FPaContext& InCtx);
+	
 	bool PaAssign(FPaContext& InCtx, FSupertalkAction& OutAction);
 	bool PaLine(FPaContext& InCtx, FSupertalkAction& OutAction);
 	bool PaChoice(FPaContext& InCtx, FSupertalkAction& OutAction, struct FSupertalkLine& Line);

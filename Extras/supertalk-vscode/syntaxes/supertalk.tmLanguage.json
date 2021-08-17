@@ -18,6 +18,9 @@
 			"include": "#section"
 		},
 		{
+			"include": "#directive"
+		},
+		{
 			"include": "#command"
 		},
 		{
@@ -25,6 +28,9 @@
 		},
 		{
 			"include": "#assign"
+		},
+		{
+			"include": "#localization-tag"
 		},
 		{
 			"include": "#asset"
@@ -84,6 +90,24 @@
 		"asset": {
 			"name": "variable.name.supertalk.asset",
 			"match": "/[^\\.>\\[\\]=:,\\n\\r]+"
+		},
+
+		"localization-tag": {
+			"name": "variable.name.supertalk.localization-tag",
+			"match": "@[^\\s:'\"]+"
+		},
+
+		"directive": {
+			"name": "supertalk.directive",
+			"match": "(![^\\s]+)[^\\n\\r]*",
+			"captures": {
+				"1": {
+					"name": "keyword.control.supertalk.directive"
+				},
+				"2": {
+					"name": "meta.parameter"
+				}
+			}
 		},
 
 		"string-single": {

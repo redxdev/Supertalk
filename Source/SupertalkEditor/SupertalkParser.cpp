@@ -45,6 +45,12 @@ namespace Symbols
 	static const TCHAR SingleQuote = TEXT('\'');
 	static const TCHAR DoubleQuote = TEXT('"');
 
+	static const TCHAR LocalizationKeyStart = TEXT('@');
+
+	static const TCHAR DirectiveStart = TEXT('!');
+
+	// TODO: implement escape sequences
+	// This isn't used yet, sadly.
 	static const TCHAR Escape = TEXT('\\');
 }
 
@@ -71,6 +77,8 @@ bool IsTokenSymbol(TCHAR Char)
 	case Symbols::StatementEnd:
 	case Symbols::SingleQuote:
 	case Symbols::DoubleQuote:
+	case Symbols::LocalizationKeyStart:
+	case Symbols::DirectiveStart:
 		return true;
     }
 }
@@ -101,6 +109,11 @@ bool FSupertalkParser::FToken::IsIgnorable() const
 	case ESupertalkTokenType::Comment:
 		return true;
 	}
+}
+
+FString FSupertalkParser::FToken::GetGeneratedLocalizationKey() const
+{
+	return FString::Printf(TEXT("%s_L%dC%d"), *Context.File, Context.Line, Context.Col);
 }
 
 TCHAR FSupertalkParser::FLxStream::ReadChar()
@@ -320,6 +333,7 @@ bool FSupertalkParser::RunParser(USupertalkScript* Script, const TArray<FToken>&
 	
 	FPaContext Ctx;
 	Ctx.Script = Script;
+	Ctx.DefaultNamespace = TEXT("Script.Default");
 	Ctx.Stream.Tokens = InTokens;
 
 	// Remove any ignorable tokens (for example, comments) from the stream.
@@ -332,11 +346,13 @@ bool FSupertalkParser::RunParser(USupertalkScript* Script, const TArray<FToken>&
 	{
 		// All statements must be inside a section, though the first section of the file is implicit.
 		// The first section, if it has any statements, will be used as the default section.
+		bool bIsUnnamedSection = false;
 		FName SectionName;
 		if (!PaTrySectionName(Ctx, SectionName))
 		{
 			if (DefaultSection == NAME_None)
 			{
+				bIsUnnamedSection = true;
 				SectionName = NAME_Default;
 			}
 			else
@@ -349,11 +365,20 @@ bool FSupertalkParser::RunParser(USupertalkScript* Script, const TArray<FToken>&
 		if (SectionName == NAME_None)
 		{
 			ParseError(Ctx, LOCTEXT("SectionNameNotNone", "Section name cannot be 'None'"));
+			return false;
 		}
 
 		if (!PaSection(Ctx, SectionName))
 		{
 			return false;
+		}
+
+		// Certain actions (specifically, directives) don't actually compile to anything and as such
+		// shouldn't cause an unnamed default section to be created.
+		if (bIsUnnamedSection && Ctx.Script->Sections[SectionName].Actions.Num() == 0)
+		{
+			Ctx.Script->Sections.Remove(SectionName);
+			continue;
 		}
 
 		if (Ctx.Script->DefaultSection == NAME_None)
@@ -573,6 +598,14 @@ bool FSupertalkParser::LxToken(FLxContext& InCtx, FToken& OutToken)
 	case Symbols::StatementEnd:
 		OutToken.Type = ESupertalkTokenType::StatementEnd;
 		return true;
+
+	case Symbols::DirectiveStart:
+		OutToken.Type = ESupertalkTokenType::Directive;
+		return LxTokenDirective(InCtx, OutToken);
+
+	case Symbols::LocalizationKeyStart:
+		OutToken.Type = ESupertalkTokenType::LocalizationKey;
+		return LxTokenLocalizationKey(InCtx, OutToken);
 	}
 }
 
@@ -742,6 +775,73 @@ bool FSupertalkParser::LxTokenComment(FLxContext& InCtx, FToken& OutComment)
 	return true;
 }
 
+bool FSupertalkParser::LxTokenDirective(FLxContext& InCtx, FToken& OutDirective)
+{
+	FString Content = FString();
+	while (!InCtx.Stream.IsEOF())
+	{
+		TCHAR Char = InCtx.Stream.ReadChar();
+		if (Char == '\n')
+		{
+			break;
+		}
+
+		Content += Char;
+	}
+
+	Content.TrimStartAndEndInline();
+	if (Content.IsEmpty())
+	{
+		return false;
+	}
+
+	OutDirective.Content = Content;
+	return true;
+}
+
+bool FSupertalkParser::LxTokenLocalizationKey(FLxContext& InCtx, FToken& OutLocalizationKey)
+{
+	FString Content = FString();
+	FString Namespace;
+	while (!InCtx.Stream.IsEOF())
+	{
+		TCHAR Char = InCtx.Stream.ReadChar();
+		if (Char == TEXT('/'))
+		{
+			if (!Namespace.IsEmpty())
+			{
+				return false;
+			}
+
+			Namespace = Content;
+			Content = FString();
+		}
+		else if (Char == Symbols::SingleQuote
+			|| Char == Symbols::DoubleQuote
+			|| Char == Symbols::TextStart
+			|| FChar::IsWhitespace(Char))
+		{
+			InCtx.Stream.GoBack(1);
+			break;
+		}
+		else
+		{
+			Content += Char;
+		}
+	}
+	
+	Content.TrimStartAndEndInline();
+	if (Content.IsEmpty())
+	{
+		return false;
+	}
+
+	Namespace.TrimStartAndEndInline();
+	OutLocalizationKey.Content = Content;
+	OutLocalizationKey.Namespace = Namespace;
+	return true;
+}
+
 void FSupertalkParser::ParseTokenError(const FPaContext& InCtx, const FToken& Token, ESupertalkTokenType ExpectedTokenType) const
 {
 	FToken ExpectedToken;
@@ -804,7 +904,10 @@ bool FSupertalkParser::PaSection(FPaContext& InCtx, FName Name)
 			return false;
 		}
 
-		Section.Actions.Add(Action);
+		if (Action.Operation != ESupertalkOperation::Noop)
+		{
+			Section.Actions.Add(Action);
+		}
 	}
 
 	InCtx.Script->Sections.Add(Section.Name, Section);
@@ -821,6 +924,10 @@ bool FSupertalkParser::PaAction(FPaContext& InCtx, FSupertalkAction& OutAction)
 		ParseTokenError(InCtx, Token, TEXT("Name, Command, Jump, ParallelStart, QueueStart"));
 		return false;
 
+	case ESupertalkTokenType::Directive:
+		InCtx.Stream.GoBack(1);
+		return PaDirective(InCtx);
+
 	case ESupertalkTokenType::Name:
 		{
 			FToken Token2 = InCtx.Stream.ReadToken();
@@ -836,6 +943,7 @@ bool FSupertalkParser::PaAction(FPaContext& InCtx, FSupertalkAction& OutAction)
 
 			case ESupertalkTokenType::Separator:
 			case ESupertalkTokenType::AttrStart:
+			case ESupertalkTokenType::LocalizationKey:
 			case ESupertalkTokenType::Text:
 				InCtx.Stream.GoBack(2);
 				return PaLine(InCtx, OutAction);
@@ -858,6 +966,35 @@ bool FSupertalkParser::PaAction(FPaContext& InCtx, FSupertalkAction& OutAction)
 		InCtx.Stream.GoBack(1);
 		return PaQueue(InCtx, OutAction);
 	}
+}
+
+bool FSupertalkParser::PaDirective(FPaContext& InCtx)
+{
+	FToken Token = InCtx.Stream.ReadToken();
+	check(Token.Type == ESupertalkTokenType::Directive);
+
+	FString Directive;
+	FString Content;
+	if (!Token.Content.Split(TEXT(" "), &Directive, &Content))
+	{
+		Directive = Token.Content;
+	}
+
+	if (Directive.Compare(TEXT("namespace"), ESearchCase::IgnoreCase) == 0)
+	{
+		Content.TrimStartAndEndInline();
+		if (Content.IsEmpty())
+		{
+			ParseError(InCtx, Token, LOCTEXT("InvalidNamespaceDirective", "namespace directive cannot be passed empty text"));
+			return false;
+		}
+		
+		InCtx.DefaultNamespace = Content;
+		return true;
+	}
+	
+	ParseError(InCtx, Token, FText::Format(LOCTEXT("InvalidDirective", "unknown directive '{0}'"), FText::FromString(Directive)));
+	return false;
 }
 
 bool FSupertalkParser::PaAssign(FPaContext& InCtx, FSupertalkAction& OutAction)
@@ -938,13 +1075,29 @@ bool FSupertalkParser::PaLine(FPaContext& InCtx, FSupertalkAction& OutAction)
 		return true;
 	}
 
+	FString Namespace = InCtx.DefaultNamespace;
+	FString Key;
+	if (Token.Type == ESupertalkTokenType::LocalizationKey)
+	{
+		if (!Token.Namespace.IsEmpty())
+		{
+			Namespace = Token.Namespace;
+		}
+
+		Key = Token.Content;
+
+		Token = InCtx.Stream.ReadToken();
+	}
+
 	if (Token.Type != ESupertalkTokenType::Text)
 	{
 		ParseTokenError(InCtx, Token, ESupertalkTokenType::Text);
 		return false;
 	}
 
-	Line.Text = FText::FromString(Token.Content);
+	// Is there a better way to initialize an FText with a variable namespace/key? The FText constructor we want isn't
+	// accessible sadly, and double-constructing an FText (due to the FText::FromString call) seems inefficient.
+	Line.Text = FText::ChangeKey(FTextKey(Namespace), FTextKey(Key.IsEmpty() ? Token.GetGeneratedLocalizationKey() : Key), FText::FromString(Token.Content));
 
 	FToken NextToken = InCtx.Stream.PeekToken();
 	if (NextToken.Type == ESupertalkTokenType::Choice && NextToken.Indentation >= Token.Indentation)
@@ -1112,6 +1265,7 @@ bool FSupertalkParser::PaValue(FPaContext& InCtx, TObjectPtr<USupertalkValue>& O
 	case ESupertalkTokenType::Name:
 		return PaVariableValue(InCtx, OutValue);
 
+	case ESupertalkTokenType::LocalizationKey:
 	case ESupertalkTokenType::Text:
 		return PaTextValue(InCtx, OutValue);
 
@@ -1167,10 +1321,24 @@ bool FSupertalkParser::PaVariableValue(FPaContext& InCtx, TObjectPtr<USupertalkV
 bool FSupertalkParser::PaTextValue(FPaContext& InCtx, TObjectPtr<USupertalkValue>& OutValue)
 {
 	FToken Token = InCtx.Stream.ReadToken();
+	FString Namespace = InCtx.DefaultNamespace;
+	FString Key;
+	if (Token.Type == ESupertalkTokenType::LocalizationKey)
+	{
+		if (!Token.Namespace.IsEmpty())
+		{
+			Namespace = Token.Namespace;
+		}
+
+		Key = Token.Content;
+
+		Token = InCtx.Stream.ReadToken();
+	}
+	
 	check(Token.Type == ESupertalkTokenType::Text);
 
 	USupertalkTextValue* Text = NewObject<USupertalkTextValue>(InCtx.Script);
-	Text->Text = FText::FromString(Token.Content);
+	Text->Text = FText::ChangeKey(FTextKey(Namespace), FTextKey(Key.IsEmpty() ? Token.GetGeneratedLocalizationKey() : Key), FText::FromString(Token.Content));
 	OutValue = Text;
 	return true;
 }
