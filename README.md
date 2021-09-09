@@ -25,6 +25,8 @@ support will be offered beyond this documentation.
 * TODO: There's no sample project (yet) :(
 * TODO: Tool to automatically insert localization markup in script files.
 * TODO: Support for escape sequences in strings.
+* TODO: Conditional expressions (equals, not equals, less/greater than, etc)
+* TODO: Possibly change the syntax for conditional expressions, comma to denote an else block seems weird.
 
 ## Scripting Syntax + Features
 
@@ -139,6 +141,23 @@ Person2: I'm in section 3!
 # Section4
 
 Person2: I'm in section 4!
+-> Conditionals
+
+# Conditionals
+-- Supertalk supports very basic support for control flow/conditional execution. You can set a variable to true or false either in a script or from C++:
+MyTrueValue = true
+MyFalseValue = false
+
+-- And then test the value using a question mark. The action immediately following the question mark is executed when the statement is true:
+MyTrueValue? Person1: I'll be executed because this conditional is true!
+
+-- A comma after the first action will denote a single action that will be executed if the conditional is false. Note that indentation rules for text still applies:
+MyFalseValue? Person1: I won't be executed.
+,             Person1: I will be executed!
+
+-- You can omit the first action but include the comma if you only want something executed if the conditional is false:
+MyFalseValue?, Person1: I will be executed!
+
 -> Localization
 
 # Localization

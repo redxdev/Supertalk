@@ -74,6 +74,20 @@ void USupertalkPlayer::SetVariable(FName Name, USupertalkValue* Value)
 	}
 }
 
+void USupertalkPlayer::SetVariable(FName Name, bool Value)
+{
+	USupertalkBooleanValue* BoolValue = NewObject<USupertalkBooleanValue>(this);
+	BoolValue->bValue = Value;
+	SetVariable(Name, BoolValue);
+}
+
+void USupertalkPlayer::SetVariable(FName Name, FText Value)
+{
+	USupertalkTextValue* TextValue = NewObject<USupertalkTextValue>(this);
+	TextValue->Text = Value;
+	SetVariable(Name, TextValue);
+}
+
 const USupertalkValue* USupertalkPlayer::GetVariable(FName Name) const
 {
 	const TObjectPtr<USupertalkValue>* Value = Variables.Find(Name);
@@ -248,6 +262,14 @@ void USupertalkPlayer::PushAction(FSupertalkStack& Stack, const USupertalkScript
 	Stack.QueuedActions.Add(Context);
 }
 
+void USupertalkPlayer::PushAction(uint32 StackId, const USupertalkScript* Script, const FSupertalkAction& Action)
+{
+	check(Script);
+
+	FSupertalkStack& Stack = Stacks.FindChecked(StackId);
+	PushAction(Stack, Script, Action);
+}
+
 void USupertalkPlayer::CompleteActionAndTick(FSupertalkActionKey Key)
 {
 	CompleteAction(Key);
@@ -366,6 +388,10 @@ void USupertalkPlayer::ExecuteAction(const FSupertalkActionWithContext& Context)
 
 	case ESupertalkOperation::Queue:
 		HandleQueue(Context);
+		break;
+
+	case ESupertalkOperation::Conditional:
+		HandleConditional(Context);
 		break;
 	}
 }
@@ -582,6 +608,35 @@ void USupertalkPlayer::HandleQueue(const FSupertalkActionWithContext& Context)
 	}
 
 	PushActions(Context.Key.StackId, Context.Source, Params->SubActions);
+	CompleteAction(Context.Key);
+}
+
+void USupertalkPlayer::HandleConditional(const FSupertalkActionWithContext& Context)
+{
+	USupertalkConditionalParams* Params = CastChecked<USupertalkConditionalParams>(Context.Action.Params);
+	if (!IsValid(Params->Value))
+	{
+		UE_LOG(LogSupertalk, Warning, TEXT("Conditional action with no value, skipped"));
+		CompleteAction(Context.Key);
+		return;
+	}
+
+	bool bConditionalValue = false;
+	const USupertalkValue* ResolvedValue = Params->Value->GetResolvedValue(this);
+	if (IsValid(ResolvedValue))
+	{
+		const USupertalkBooleanValue* BoolValue = Cast<USupertalkBooleanValue>(ResolvedValue);
+		if (!BoolValue)
+		{
+			UE_LOG(LogSupertalk, Warning, TEXT("Conditional action received non-boolean value '%s', skipping (non-boolean values are not supported at this time)"), *ResolvedValue->ToDisplayText().ToString());
+			CompleteAction(Context.Key);
+			return;
+		}
+
+		bConditionalValue = BoolValue->bValue;
+	}
+
+	PushAction(Context.Key.StackId, Context.Source, bConditionalValue ? Params->TrueAction : Params->FalseAction);
 	CompleteAction(Context.Key);
 }
 

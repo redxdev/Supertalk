@@ -30,10 +30,16 @@
 			"include": "#assign"
 		},
 		{
+			"include": "#conditional"
+		},
+		{
 			"include": "#localization-tag"
 		},
 		{
 			"include": "#asset"
+		},
+		{
+			"include": "#keywords"
 		}
 	],
 	"repository": {
@@ -85,6 +91,11 @@
 		"assign": {
 			"name": "keyword.operator.supertalk.assign",
 			"match": "="
+		},
+
+		"conditional": {
+			"name": "keyword.operator.supertalk.conditional",
+			"match": "\\?"
 		},
 
 		"asset": {
@@ -168,6 +179,11 @@
 		"markup-tag": {
 			"name": "entity.name.tag",
 			"match": "<([^\\n/>]*)/?>"
+		},
+
+		"keywords": {
+			"name": "keyword.other",
+			"match": "(?i)\\b(true|false|none)\\b"
 		}
 	},
 	"scopeName": "source.supertalk"

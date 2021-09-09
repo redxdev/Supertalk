@@ -3,6 +3,8 @@
 #include "SupertalkValue.h"
 #include "SupertalkPlayer.h"
 
+#define LOCTEXT_NAMESPACE "SupertalkValue"
+
 const USupertalkValue* USupertalkValue::GetResolvedValue(const USupertalkPlayer* Player) const
 {
 	check(Player);
@@ -30,6 +32,16 @@ FText USupertalkValue::ToResolvedDisplayText(const USupertalkPlayer* Player) con
 }
 
 const USupertalkValue* USupertalkValue::ResolveValue(const USupertalkPlayer* Player) const
+{
+	return nullptr;
+}
+
+FText USupertalkBooleanValue::ToDisplayText() const
+{
+	return bValue ? LOCTEXT("True", "true") : LOCTEXT("False", "false");
+}
+
+const USupertalkValue* USupertalkBooleanValue::GetMember(FName MemberName) const
 {
 	return nullptr;
 }
@@ -151,3 +163,5 @@ const USupertalkValue* USupertalkObjectValue::GetMember(FName MemberName) const
 
 	return nullptr;
 }
+
+#undef LOCTEXT_NAMESPACE

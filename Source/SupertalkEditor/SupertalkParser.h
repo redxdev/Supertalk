@@ -34,7 +34,8 @@ enum class ESupertalkTokenType : uint8
     QueueEnd,
 	StatementEnd,
 	LocalizationKey,
-	Directive
+	Directive,
+	Conditional
 };
 
 /**
@@ -196,6 +197,7 @@ private:
 	bool PaJump(FPaContext& InCtx, FSupertalkAction& OutAction);
 	bool PaParallel(FPaContext& InCtx, FSupertalkAction& OutAction);
 	bool PaQueue(FPaContext& InCtx, FSupertalkAction& OutAction);
+	bool PaConditional(FPaContext& InCtx, FSupertalkAction& OutAction);
 	
 	bool PaValue(FPaContext& InCtx, TObjectPtr<USupertalkValue>& OutValue);
 	bool PaVariableValue(FPaContext& InCtx, TObjectPtr<USupertalkValue>& OutValue);

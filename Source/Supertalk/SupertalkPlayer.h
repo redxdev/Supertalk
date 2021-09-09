@@ -19,7 +19,8 @@ enum class ESupertalkOperation : uint8
     Call,
     Jump,
 	Parallel,
-	Queue
+	Queue,
+	Conditional
 };
 
 UCLASS(MinimalAPI)
@@ -173,6 +174,23 @@ public:
 	TArray<FSupertalkAction> SubActions;
 };
 
+UCLASS()
+class SUPERTALK_API USupertalkConditionalParams : public USupertalkOperationParams
+{
+	GENERATED_BODY()
+
+public:
+	// TODO: full expression support
+	UPROPERTY()
+	TObjectPtr<USupertalkValue> Value;
+
+	UPROPERTY()
+	FSupertalkAction TrueAction;
+
+	UPROPERTY()
+	FSupertalkAction FalseAction;
+};
+
 struct FSupertalkActionKey
 {
 	friend class USupertalkPlayer;
@@ -282,6 +300,9 @@ public:
 	USupertalkPlayer();
 	
 	void SetVariable(FName Name, USupertalkValue* Value);
+	void SetVariable(FName Name, bool Value);
+	void SetVariable(FName Name, FText Value);
+	
 	const USupertalkValue* GetVariable(FName Name) const;
 	void ClearVariables();
 
@@ -337,6 +358,7 @@ private:
 
 	// Pushes a single action onto the top of the stack. It will execute next.
 	void PushAction(FSupertalkStack& Stack, const USupertalkScript* Script, const FSupertalkAction& Action);
+	void PushAction(uint32 StackId, const USupertalkScript* Script, const FSupertalkAction& Action);
 
 	void CompleteActionAndTick(FSupertalkActionKey Key);
 	void CompleteAction(FSupertalkActionKey Key);
@@ -359,4 +381,6 @@ private:
 	void FinishWaitingOnStack(uint32 ExitingId, uint32 WaitingId);
 
 	void HandleQueue(const FSupertalkActionWithContext& Context);
+
+	void HandleConditional(const FSupertalkActionWithContext& Context);
 };

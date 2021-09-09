@@ -49,6 +49,8 @@ namespace Symbols
 
 	static const TCHAR DirectiveStart = TEXT('!');
 
+	static const TCHAR Conditional = TEXT('?');
+
 	// TODO: implement escape sequences
 	// This isn't used yet, sadly.
 	static const TCHAR Escape = TEXT('\\');
@@ -79,8 +81,23 @@ bool IsTokenSymbol(TCHAR Char)
 	case Symbols::DoubleQuote:
 	case Symbols::LocalizationKeyStart:
 	case Symbols::DirectiveStart:
+	case Symbols::Conditional:
 		return true;
     }
+}
+
+bool IsReservedName(FName Input)
+{
+	if (Input == NAME_None)
+		return true;
+	
+	if (Input == NAME_TRUE)
+		return true;
+	
+	if (Input == NAME_FALSE)
+		return true;
+
+	return false;
 }
 
 TSharedRef<FSupertalkParser> FSupertalkParser::Create(FMessageLog* MessageLog)
@@ -606,6 +623,10 @@ bool FSupertalkParser::LxToken(FLxContext& InCtx, FToken& OutToken)
 	case Symbols::LocalizationKeyStart:
 		OutToken.Type = ESupertalkTokenType::LocalizationKey;
 		return LxTokenLocalizationKey(InCtx, OutToken);
+
+	case Symbols::Conditional:
+		OutToken.Type = ESupertalkTokenType::Conditional;
+		return true;
 	}
 }
 
@@ -947,6 +968,10 @@ bool FSupertalkParser::PaAction(FPaContext& InCtx, FSupertalkAction& OutAction)
 			case ESupertalkTokenType::Text:
 				InCtx.Stream.GoBack(2);
 				return PaLine(InCtx, OutAction);
+
+			case ESupertalkTokenType::Conditional:
+				InCtx.Stream.GoBack(2);
+				return PaConditional(InCtx, OutAction);
 			}
 		}
 
@@ -1003,7 +1028,7 @@ bool FSupertalkParser::PaAssign(FPaContext& InCtx, FSupertalkAction& OutAction)
 	check(VarToken.Type == ESupertalkTokenType::Name);
 
 	FName VarName = FName(VarToken.Content);
-	if (VarName == NAME_None)
+	if (IsReservedName(VarName))
 	{
 		ParseError(InCtx, VarToken, LOCTEXT("InvalidVariableName", "invalid variable name"));
 		return false;
@@ -1253,6 +1278,41 @@ bool FSupertalkParser::PaQueue(FPaContext& InCtx, FSupertalkAction& OutAction)
 	return true;
 }
 
+bool FSupertalkParser::PaConditional(FPaContext& InCtx, FSupertalkAction& OutAction)
+{
+	OutAction.Operation = ESupertalkOperation::Conditional;
+	USupertalkConditionalParams* Params = NewObject<USupertalkConditionalParams>(InCtx.Script);
+	OutAction.Params = Params;
+
+	if (!PaValue(InCtx, Params->Value))
+	{
+		return false;
+	}
+
+	FToken Token = InCtx.Stream.ReadToken();
+	check(Token.Type == ESupertalkTokenType::Conditional);
+
+	Token = InCtx.Stream.PeekToken();
+	if (Token.Type != ESupertalkTokenType::Separator)
+	{
+		if (!PaAction(InCtx, Params->TrueAction))
+		{
+			return false;
+		}
+	}
+
+	Token = InCtx.Stream.ReadToken();
+	if (Token.Type == ESupertalkTokenType::Separator)
+	{
+		return PaAction(InCtx, Params->FalseAction);
+	}
+	else
+	{
+		InCtx.Stream.GoBack(1);
+		return true;
+	}
+}
+
 bool FSupertalkParser::PaValue(FPaContext& InCtx, TObjectPtr<USupertalkValue>& OutValue)
 {
 	FToken Token = InCtx.Stream.PeekToken();
@@ -1280,13 +1340,35 @@ bool FSupertalkParser::PaVariableValue(FPaContext& InCtx, TObjectPtr<USupertalkV
 	check(Token.Type == ESupertalkTokenType::Name);
 
 	FName VarName = FName(Token.Content);
-	if (VarName == NAME_None)
+	if (IsReservedName(VarName))
 	{
-		OutValue = nullptr;
-		return true;
-	}
+		if (VarName == NAME_None)
+		{
+			OutValue = nullptr;
+			return true;
+		}
 
-	if (InCtx.Stream.PeekToken().Type == ESupertalkTokenType::Member)
+		if (VarName == NAME_TRUE)
+		{
+			USupertalkBooleanValue* BoolValue = NewObject<USupertalkBooleanValue>(InCtx.Script);
+			BoolValue->bValue = true;
+			OutValue = BoolValue;
+			return true;
+		}
+		
+		if (VarName == NAME_FALSE)
+		{
+			USupertalkBooleanValue* BoolValue = NewObject<USupertalkBooleanValue>(InCtx.Script);
+			BoolValue->bValue = false;
+			OutValue = BoolValue;
+			return true;
+		}
+
+		checkNoEntry();
+		ParseTokenError(InCtx, Token, TEXT("Unknown (reserved name found but not implemented)"));
+		return false;
+	}
+	else if (InCtx.Stream.PeekToken().Type == ESupertalkTokenType::Member)
 	{
 		USupertalkMemberValue* Member = NewObject<USupertalkMemberValue>(InCtx.Script);
 		Member->Variable = VarName;

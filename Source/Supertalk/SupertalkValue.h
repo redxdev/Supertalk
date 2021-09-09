@@ -25,6 +25,19 @@ protected:
 };
 
 UCLASS()
+class SUPERTALK_API USupertalkBooleanValue : public USupertalkValue
+{
+	GENERATED_BODY()
+
+public:
+	UPROPERTY(VisibleAnywhere)
+	uint8 bValue : 1;
+
+	virtual FText ToDisplayText() const override;
+	virtual const USupertalkValue* GetMember(FName MemberName) const override;
+};
+
+UCLASS()
 class SUPERTALK_API USupertalkTextValue : public USupertalkValue
 {
 	GENERATED_BODY()
