@@ -14,6 +14,10 @@ its usages of `TObjectPtr`.
 with no UI. While it does integrate well with blueprint, initial integration with a game requires knowledge of C++ and no
 support will be offered beyond this documentation.
 
+## Warning
+
+Supertalk is still under development. While it works, syntax is subject to change.
+
 ## Known Issues / TODOs
 
 * Issue: Recursive calls into `USupertalkPlayer::PlayScript` are not currently allowed, though they should technically be possible. This
