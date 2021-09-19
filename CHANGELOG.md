@@ -1,5 +1,11 @@
 This file contains information about major changes and features.
 
+# 0.3
+
+* Choices can now have localization keys applied.
+  * This has been implemented in a somewhat hacky way to get around limitations of the lexer.
+* Default localization namespace changed to `Supertalk.Script.Default` from `Script.Default`, to match documentation.
+
 # 0.2
 
 * Parallel actions now use `[` and `]`

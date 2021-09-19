@@ -31,7 +31,6 @@ Supertalk is still under development. While it works, syntax is subject to chang
 * TODO: Support for escape sequences in strings.
 * TODO: More expression operators (basic math, less/greater than, etc)
   * Math operators will require explicit number type support
-* TODO: Choices do not currently support localization.
 
 ## Scripting Syntax + Features
 
@@ -195,12 +194,17 @@ if FalseValue ~= FalseValue then Person1: I won't be executed.
 -- At some point a tool to auto-generate keys and insert them into supertalk scripts would be nice but it doesn't currently exist.
 Person1 [Happy] @L01A: This line could be translated!
 
+-- Choices are localized separately from their owning lines.
+Person1 @L01B: Here are some choices that could be translated.
+* @L01B_C1 I'm choice 1!
+* @L01B_C2 I'm choice 2!
+
 -- Namespaces can be specified by separating them from the key with '/'
 -- If a namespace isn't specified, the default namespace "Supertalk.Script.Default" will be used.
-Person1 [Sad] @Dialogue.Example/L01B: This line could also be translated!
+Person1 [Sad] @Dialogue.Example/L01C: This line could also be translated!
 
 -- String literals (which are stored internally as FText anyway) can be given localization keys as well, with the same syntax.
-MyLocalizedString = @Dialogue.Example/L01C "I'm a string literal that can be localized!"
+MyLocalizedString = @Dialogue.Example/L01D "I'm a string literal that can be localized!"
 
 -- You can apply a single namespace to everything below it with a "namespace directive".
 -- This applies regardless of section due to namespace directives being resolved at import time rather than runtime.

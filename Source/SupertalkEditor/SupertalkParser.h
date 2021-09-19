@@ -116,6 +116,14 @@ private:
 		FLxStream Stream;
 		int32 CurrentIndentation;
 
+		// HACK: emitting a choice token results in some special behavior around consuming the rest of the line.
+		uint32 bIsChoiceLine : 1;
+
+		FLxContext()
+		{
+			bIsChoiceLine = false;
+		}
+
 		FORCEINLINE FTokenContext CreateContext() const
 		{
 			FTokenContext Ctx;

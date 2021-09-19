@@ -356,7 +356,7 @@ bool FSupertalkParser::RunParser(USupertalkScript* Script, const TArray<FToken>&
 	
 	FPaContext Ctx;
 	Ctx.Script = Script;
-	Ctx.DefaultNamespace = TEXT("Script.Default");
+	Ctx.DefaultNamespace = TEXT("Supertalk.Script.Default");
 	Ctx.Stream.Tokens = InTokens;
 
 	// Remove any ignorable tokens (for example, comments) from the stream.
@@ -457,6 +457,12 @@ void FSupertalkParser::ConsumeEmptyLines(FLxContext& InCtx)
 			break;
 		}
 	}
+
+	// HACK
+	if (InitialLine != InCtx.Stream.CurrentLine)
+	{
+		InCtx.bIsChoiceLine = false;
+	}
 }
 
 int32 FSupertalkParser::ConsumeWhitespaceUpdateIndentation(FLxContext& InCtx)
@@ -519,10 +525,36 @@ bool FSupertalkParser::LxToken(FLxContext& InCtx, FToken& OutToken)
 
 	TCHAR Char = InCtx.Stream.ReadChar();
 	OutToken.Content = FString() + Char;
+
+	// HACK: choices need to have special handling to consume all the text left on the line, except if we find a
+	// localization key. Eventually this should be rewritten because not only is it hacky but it also means each choice
+	// can only take place on a single line.
+	if (InCtx.bIsChoiceLine)
+	{
+		if (Char == Symbols::LocalizationKeyStart)
+		{
+			OutToken.Type = ESupertalkTokenType::LocalizationKey;
+			return LxTokenLocalizationKey(InCtx, OutToken);
+		}
+		else
+		{
+			InCtx.Stream.GoBack(1);
+			OutToken.Type = ESupertalkTokenType::Text;
+			if (!LxTokenText(InCtx, OutToken, ETextParseMode::SingleLine))
+			{
+				OutToken.Content = FString();
+			}
+
+			InCtx.bIsChoiceLine = false;
+			return true;
+		}
+	}
+	
 	switch (Char)
 	{
 	default:
 		InCtx.Stream.GoBack(1);
+		
 		OutToken.Type = ESupertalkTokenType::Name;
 		if (!LxTokenName(InCtx, OutToken, false))
 		{
@@ -581,11 +613,7 @@ bool FSupertalkParser::LxToken(FLxContext& InCtx, FToken& OutToken)
 
 	case Symbols::ChoiceStart:
 		OutToken.Type = ESupertalkTokenType::Choice;
-		if (!LxTokenText(InCtx, OutToken, ETextParseMode::SingleLine))
-		{
-			OutToken.Content = FString();
-		}
-		
+		InCtx.bIsChoiceLine = true; // HACK
 		return true;
 
 	case Symbols::SectionStart:
@@ -1195,7 +1223,28 @@ bool FSupertalkParser::PaChoice(FPaContext& InCtx, FSupertalkAction& OutAction, 
 	while (Token.Type == ESupertalkTokenType::Choice)
 	{
 		FSupertalkChoice Choice;
-		Choice.Text = FText::FromString(Token.Content);
+		Token = InCtx.Stream.ReadToken();
+		FString Namespace = InCtx.DefaultNamespace;
+		FString Key;
+		if (Token.Type == ESupertalkTokenType::LocalizationKey)
+		{
+			if (!Token.Namespace.IsEmpty())
+			{
+				Namespace = Token.Namespace;
+			}
+
+			Key = Token.Content;
+			Token = InCtx.Stream.ReadToken();
+		}
+
+		if (Token.Type != ESupertalkTokenType::Text)
+		{
+			ParseTokenError(InCtx, Token, ESupertalkTokenType::Text);
+			return false;
+		}
+
+		Choice.Text = FText::ChangeKey(FTextKey(Namespace), FTextKey(Key.IsEmpty() ? Token.GetGeneratedLocalizationKey() : Key), FText::FromString(Token.Content));
+
 		if (InCtx.Stream.PeekToken().Indentation >= Token.Indentation)
 		{
 			if (!PaAction(InCtx, Choice.SubAction))
