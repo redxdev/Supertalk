@@ -2,6 +2,7 @@
 
 #include "SupertalkPlayer.h"
 #include "Supertalk.h"
+#include "SupertalkExpression.h"
 #include "SupertalkValue.h"
 #include "EditorFramework/AssetImportData.h"
 #include "Logging/MessageLog.h"
@@ -61,7 +62,7 @@ USupertalkPlayer::USupertalkPlayer()
 	NextStackId = 1;
 }
 
-void USupertalkPlayer::SetVariable(FName Name, USupertalkValue* Value)
+void USupertalkPlayer::SetVariable(FName Name, const USupertalkValue* Value)
 {
 	if (!IsValid(Value))
 	{
@@ -70,6 +71,7 @@ void USupertalkPlayer::SetVariable(FName Name, USupertalkValue* Value)
 	else
 	{
 		// We don't allow aliasing (pointers/references), so always resolve values.
+		// TODO: can we store const TObjectPtrs? Is that a thing?
 		Variables.Add(Name, const_cast<USupertalkValue*>(Value->GetResolvedValue(this)));
 	}
 }
@@ -461,7 +463,20 @@ void USupertalkPlayer::ReceiveChoice(int32 ChoiceIndex, FSupertalkActionKey Key)
 void USupertalkPlayer::HandleAssign(const FSupertalkActionWithContext& Context)
 {
 	USupertalkAssignParams* Params = CastChecked<USupertalkAssignParams>(Context.Action.Params);
-	SetVariable(Params->Variable, Params->Value);
+
+	const USupertalkValue* Value = nullptr;
+	if (Params->Expression)
+	{
+		Value = Params->Expression->Evaluate(this);
+	}
+	else
+	{
+		Value = Params->Value_DEPRECATED;
+	}
+
+	Value = Value ? Value->GetResolvedValue(this) : nullptr;
+
+	SetVariable(Params->Variable, Value);
 
 	// Not necessary to tick, this can only happen as the result of an ongoing tick.
 	CompleteAction(Context.Key);
@@ -602,7 +617,6 @@ void USupertalkPlayer::HandleQueue(const FSupertalkActionWithContext& Context)
 	USupertalkQueueParams* Params = CastChecked<USupertalkQueueParams>(Context.Action.Params);
 	if (Params->SubActions.Num() == 0)
 	{
-		UE_LOG(LogSupertalk, Warning, TEXT("Queue with no subactions, skipped"));
 		CompleteAction(Context.Key);
 		return;
 	}
@@ -614,26 +628,35 @@ void USupertalkPlayer::HandleQueue(const FSupertalkActionWithContext& Context)
 void USupertalkPlayer::HandleConditional(const FSupertalkActionWithContext& Context)
 {
 	USupertalkConditionalParams* Params = CastChecked<USupertalkConditionalParams>(Context.Action.Params);
-	if (!IsValid(Params->Value))
+
+	const USupertalkValue* Value = nullptr;
+	if (Params->Expression)
 	{
-		UE_LOG(LogSupertalk, Warning, TEXT("Conditional action with no value, skipped"));
-		CompleteAction(Context.Key);
-		return;
+		Value = Params->Expression->Evaluate(this);
+	}
+	else
+	{
+		Value = Params->Value_DEPRECATED;
 	}
 
-	bool bConditionalValue = false;
-	const USupertalkValue* ResolvedValue = Params->Value->GetResolvedValue(this);
-	if (IsValid(ResolvedValue))
+	Value = Value ? Value->GetResolvedValue(this) : nullptr;
+
+	bool bConditionalValue;
+	if (Value)
 	{
-		const USupertalkBooleanValue* BoolValue = Cast<USupertalkBooleanValue>(ResolvedValue);
+		const USupertalkBooleanValue* BoolValue = Cast<USupertalkBooleanValue>(Value);
 		if (!BoolValue)
 		{
-			UE_LOG(LogSupertalk, Warning, TEXT("Conditional action received non-boolean value '%s', skipping (non-boolean values are not supported at this time)"), *ResolvedValue->ToDisplayText().ToString());
+			UE_LOG(LogSupertalk, Warning, TEXT("Conditional action received non-boolean value '%s', skipping (non-boolean values are not supported at this time)"), *Value->ToDisplayText().ToString());
 			CompleteAction(Context.Key);
 			return;
 		}
 
 		bConditionalValue = BoolValue->bValue;
+	}
+	else
+	{
+		bConditionalValue = false;
 	}
 
 	PushAction(Context.Key.StackId, Context.Source, bConditionalValue ? Params->TrueAction : Params->FalseAction);

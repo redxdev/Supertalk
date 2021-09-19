@@ -14,10 +14,7 @@ namespace Symbols
 {
 	static const TCHAR Separator = TEXT(',');
 	static const TCHAR Member = TEXT('.');
-	static const TCHAR Assign = TEXT('=');
-	
-	static const TCHAR AttrStart = TEXT('[');
-	static const TCHAR AttrEnd = TEXT(']');
+	static const TCHAR Equals = TEXT('=');
 	
 	static const TCHAR TextStart = TEXT(':');
 
@@ -34,11 +31,11 @@ namespace Symbols
 
 	static const TCHAR CommandStart = TEXT('>');
 	
-	static const TCHAR ParallelStart = TEXT('{');
-	static const TCHAR ParallelEnd = TEXT('}');
+	static const TCHAR ParallelStart = TEXT('[');
+	static const TCHAR ParallelEnd = TEXT(']');
 
-	static const TCHAR QueueStart = TEXT('(');
-	static const TCHAR QueueEnd = TEXT(')');
+	static const TCHAR QueueStart = TEXT('{');
+	static const TCHAR QueueEnd = TEXT('}');
 
 	static const TCHAR StatementEnd = TEXT(';');
 
@@ -49,7 +46,10 @@ namespace Symbols
 
 	static const TCHAR DirectiveStart = TEXT('!');
 
-	static const TCHAR Conditional = TEXT('?');
+	static const TCHAR GroupStart = TEXT('(');
+	static const TCHAR GroupEnd = TEXT(')');
+
+	static const TCHAR Not = TEXT('~');
 
 	// TODO: implement escape sequences
 	// This isn't used yet, sadly.
@@ -65,9 +65,7 @@ bool IsTokenSymbol(TCHAR Char)
 
     case Symbols::Separator:
     case Symbols::Member:
-    case Symbols::Assign:
-    case Symbols::AttrStart:
-	case Symbols::AttrEnd:
+    case Symbols::Equals:
     case Symbols::TextStart:
     case Symbols::AssetStart1:
     case Symbols::AssetStart2:
@@ -76,29 +74,37 @@ bool IsTokenSymbol(TCHAR Char)
     case Symbols::Comment:
     case Symbols::CommandStart:
     case Symbols::ParallelStart:
+	case Symbols::ParallelEnd:
+	case Symbols::QueueStart:
+	case Symbols::QueueEnd:
 	case Symbols::StatementEnd:
 	case Symbols::SingleQuote:
 	case Symbols::DoubleQuote:
 	case Symbols::LocalizationKeyStart:
 	case Symbols::DirectiveStart:
-	case Symbols::Conditional:
+	case Symbols::GroupStart:
+	case Symbols::GroupEnd:
+	case Symbols::Not:
 		return true;
     }
 }
 
 bool IsReservedName(FName Input)
 {
-	if (Input == NAME_None)
-		return true;
-	
-	if (Input == NAME_TRUE)
-		return true;
-	
-	if (Input == NAME_FALSE)
-		return true;
+	static TSet<FName> ReservedNames = {
+		NAME_None,
+		NAME_TRUE,
+		NAME_FALSE
+	};
 
-	return false;
+	return ReservedNames.Contains(Input);
 }
+
+static TMap<FName, ESupertalkTokenType> NameToTokenOverrideMap = {
+	{ TEXT("if"), ESupertalkTokenType::If },
+	{ TEXT("then"), ESupertalkTokenType::Then },
+	{ TEXT("else"), ESupertalkTokenType::Else }
+};
 
 TSharedRef<FSupertalkParser> FSupertalkParser::Create(FMessageLog* MessageLog)
 {
@@ -518,7 +524,17 @@ bool FSupertalkParser::LxToken(FLxContext& InCtx, FToken& OutToken)
 	default:
 		InCtx.Stream.GoBack(1);
 		OutToken.Type = ESupertalkTokenType::Name;
-		return LxTokenName(InCtx, OutToken, true);
+		if (!LxTokenName(InCtx, OutToken, false))
+		{
+			return false;
+		}
+
+		if (ESupertalkTokenType* Override = NameToTokenOverrideMap.Find(*OutToken.Content))
+		{
+			OutToken.Type = *Override;
+		}
+
+		return true;
 
 	case Symbols::Separator:
 		OutToken.Type = ESupertalkTokenType::Separator;
@@ -528,16 +544,18 @@ bool FSupertalkParser::LxToken(FLxContext& InCtx, FToken& OutToken)
 		OutToken.Type = ESupertalkTokenType::Member;
 		return true;
 
-	case Symbols::Assign:
-		OutToken.Type = ESupertalkTokenType::Assign;
-		return true;
+	case Symbols::Equals:
+		if (InCtx.Stream.ReadChar() == Symbols::Equals)
+		{
+			OutToken.Content = TEXT("==");
+			OutToken.Type = ESupertalkTokenType::Equal;
+		}
+		else
+		{
+			InCtx.Stream.GoBack(1);
+			OutToken.Type = ESupertalkTokenType::Assign;
+		}
 
-	case Symbols::AttrStart:
-		OutToken.Type = ESupertalkTokenType::AttrStart;
-		return true;
-
-	case Symbols::AttrEnd:
-		OutToken.Type = ESupertalkTokenType::AttrEnd;
 		return true;
 
 	case Symbols::TextStart:
@@ -624,8 +642,29 @@ bool FSupertalkParser::LxToken(FLxContext& InCtx, FToken& OutToken)
 		OutToken.Type = ESupertalkTokenType::LocalizationKey;
 		return LxTokenLocalizationKey(InCtx, OutToken);
 
-	case Symbols::Conditional:
-		OutToken.Type = ESupertalkTokenType::Conditional;
+	case Symbols::GroupStart:
+		OutToken.Type = ESupertalkTokenType::GroupStart;
+		return true;
+
+	case Symbols::GroupEnd:
+		OutToken.Type = ESupertalkTokenType::GroupEnd;
+		return true;
+
+	case Symbols::Not:
+		OutToken.Type = ESupertalkTokenType::Not;
+		Char = InCtx.Stream.ReadChar();
+		switch (Char)
+		{
+		default:
+			InCtx.Stream.GoBack(1);
+			break;
+
+		case Symbols::Equals:
+			OutToken.Content = TEXT("~=");
+			OutToken.Type = ESupertalkTokenType::NotEqual;
+			break;
+		}
+
 		return true;
 	}
 }
@@ -641,6 +680,7 @@ bool FSupertalkParser::LxTokenName(FLxContext& InCtx, FToken& OutName, bool Allo
 		{
 			continue;
 		}
+
 		if (IsTokenSymbol(Char) || Char == TEXT('\n') || (!AllowWhitespace && FChar::IsWhitespace(Char)))
 		{
 			if (Char != TEXT('\n'))
@@ -648,6 +688,11 @@ bool FSupertalkParser::LxTokenName(FLxContext& InCtx, FToken& OutName, bool Allo
 				InCtx.Stream.GoBack(1);
 			}
 			
+			break;
+		}
+		else if (NameToTokenOverrideMap.Contains(*Content) && FChar::IsWhitespace(Char))
+		{
+			InCtx.Stream.GoBack(1);
 			break;
 		}
 		else
@@ -968,12 +1013,12 @@ bool FSupertalkParser::PaAction(FPaContext& InCtx, FSupertalkAction& OutAction)
 			case ESupertalkTokenType::Text:
 				InCtx.Stream.GoBack(2);
 				return PaLine(InCtx, OutAction);
-
-			case ESupertalkTokenType::Conditional:
-				InCtx.Stream.GoBack(2);
-				return PaConditional(InCtx, OutAction);
 			}
 		}
+
+	case ESupertalkTokenType::If:
+		InCtx.Stream.GoBack(1);
+		return PaConditional(InCtx, OutAction);
 
 	case ESupertalkTokenType::Command:
 		InCtx.Stream.GoBack(1);
@@ -1041,8 +1086,8 @@ bool FSupertalkParser::PaAssign(FPaContext& InCtx, FSupertalkAction& OutAction)
 		return false;
 	}
 
-	TObjectPtr<USupertalkValue> Value = nullptr;
-	if (!PaValue(InCtx, Value))
+	TObjectPtr<USupertalkExpression> Expr;
+	if (!PaExpression(InCtx, Expr))
 	{
 		return false;
 	}
@@ -1051,7 +1096,7 @@ bool FSupertalkParser::PaAssign(FPaContext& InCtx, FSupertalkAction& OutAction)
 	
 	USupertalkAssignParams* Params = NewObject<USupertalkAssignParams>(InCtx.Script);
 	Params->Variable = FName(VarToken.Content);
-	Params->Value = Value;
+	Params->Expression = Expr;
 	OutAction.Params = Params;
 
 	return true;
@@ -1280,37 +1325,136 @@ bool FSupertalkParser::PaQueue(FPaContext& InCtx, FSupertalkAction& OutAction)
 
 bool FSupertalkParser::PaConditional(FPaContext& InCtx, FSupertalkAction& OutAction)
 {
+	FToken Token = InCtx.Stream.ReadToken();
+	check(Token.Type == ESupertalkTokenType::If);
+	
 	OutAction.Operation = ESupertalkOperation::Conditional;
 	USupertalkConditionalParams* Params = NewObject<USupertalkConditionalParams>(InCtx.Script);
 	OutAction.Params = Params;
 
-	if (!PaValue(InCtx, Params->Value))
+	if (!PaExpression(InCtx, Params->Expression))
 	{
 		return false;
 	}
 
-	FToken Token = InCtx.Stream.ReadToken();
-	check(Token.Type == ESupertalkTokenType::Conditional);
+	Token = InCtx.Stream.ReadToken();
+	if (Token.Type != ESupertalkTokenType::Then)
+	{
+		ParseTokenError(InCtx, Token, ESupertalkTokenType::Then);
+		return false;
+	}
+
+	if (!PaAction(InCtx, Params->TrueAction))
+	{
+		return false;
+	}
 
 	Token = InCtx.Stream.PeekToken();
-	if (Token.Type != ESupertalkTokenType::Separator)
+	if (Token.Type == ESupertalkTokenType::Else)
 	{
-		if (!PaAction(InCtx, Params->TrueAction))
+		InCtx.Stream.ReadToken();
+		return PaAction(InCtx, Params->FalseAction);
+	}
+
+	return true;
+}
+
+bool FSupertalkParser::PaExpression(FPaContext& InCtx, TObjectPtr<USupertalkExpression>& OutExpression)
+{
+	return PaEqualityExpression(InCtx, OutExpression);
+}
+
+bool FSupertalkParser::PaEqualityExpression(FPaContext& InCtx, TObjectPtr<USupertalkExpression>& OutExpression)
+{
+	TArray<TObjectPtr<USupertalkExpression>> Expressions;
+	TArray<ESupertalkExpression_Equality_Operation> Operations;
+	TObjectPtr<USupertalkExpression> Expr;
+	FToken Token;
+	do
+	{
+		if (!PaUnaryExpression(InCtx, Expr))
 		{
+			return false;
+		}
+
+		Expressions.Add(Expr);
+		Token = InCtx.Stream.ReadToken();
+		Operations.Add(Token.Type == ESupertalkTokenType::Equal ? ESupertalkExpression_Equality_Operation::Equal : ESupertalkExpression_Equality_Operation::NotEqual);
+	}
+	while (Token.Type == ESupertalkTokenType::Equal || Token.Type == ESupertalkTokenType::NotEqual);
+	InCtx.Stream.GoBack(1);
+	Operations.RemoveAt(Operations.Num() - 1);
+
+	switch (Expressions.Num())
+	{
+	case 0:
+		checkNoEntry();
+		return false;
+
+	case 1:
+		OutExpression = Expressions[0];
+		return true;
+	}
+
+	USupertalkExpression_Equality* Equality = NewObject<USupertalkExpression_Equality>(InCtx.Script);
+	Equality->SubExpressions = Expressions;
+	Equality->Operations = Operations;
+	OutExpression = Equality;
+
+	return true;
+}
+
+bool FSupertalkParser::PaUnaryExpression(FPaContext& InCtx, TObjectPtr<USupertalkExpression>& OutExpression)
+{
+	FToken Token = InCtx.Stream.PeekToken();
+	switch (Token.Type)
+	{
+	default:
+		return PaGroupExpression(InCtx, OutExpression);
+
+	case ESupertalkTokenType::Not:
+		InCtx.Stream.ReadToken();
+		USupertalkExpression_Not* Unary = NewObject<USupertalkExpression_Not>(InCtx.Script);
+		OutExpression = Unary;
+		return PaUnaryExpression(InCtx, Unary->Value);
+	}
+}
+
+bool FSupertalkParser::PaGroupExpression(FPaContext& InCtx, TObjectPtr<USupertalkExpression>& OutExpression)
+{
+	FToken Token = InCtx.Stream.PeekToken();
+	if (Token.Type == ESupertalkTokenType::GroupStart)
+	{
+		InCtx.Stream.ReadToken();
+		if (!PaExpression(InCtx, OutExpression))
+		{
+			return false;
+		}
+
+		Token = InCtx.Stream.ReadToken();
+		if (Token.Type != ESupertalkTokenType::GroupEnd)
+		{
+			ParseTokenError(InCtx, Token, ESupertalkTokenType::GroupEnd);
 			return false;
 		}
 	}
 
-	Token = InCtx.Stream.ReadToken();
-	if (Token.Type == ESupertalkTokenType::Separator)
+	return PaValueExpression(InCtx, OutExpression);
+}
+
+bool FSupertalkParser::PaValueExpression(FPaContext& InCtx, TObjectPtr<USupertalkExpression>& OutExpression)
+{
+	TObjectPtr<USupertalkValue> Value;
+	if (!PaValue(InCtx, Value))
 	{
-		return PaAction(InCtx, Params->FalseAction);
+		return false;
 	}
-	else
-	{
-		InCtx.Stream.GoBack(1);
-		return true;
-	}
+
+	USupertalkExpression_Value* Expr = NewObject<USupertalkExpression_Value>(InCtx.Script);
+	Expr->Value = Value;
+
+	OutExpression = Expr;
+	return true;
 }
 
 bool FSupertalkParser::PaValue(FPaContext& InCtx, TObjectPtr<USupertalkValue>& OutValue)

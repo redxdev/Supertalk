@@ -18,13 +18,13 @@
 			"include": "#section"
 		},
 		{
+			"include": "#jump"
+		},
+		{
 			"include": "#directive"
 		},
 		{
 			"include": "#command"
-		},
-		{
-			"include": "#attributes"
 		},
 		{
 			"include": "#assign"
@@ -50,6 +50,9 @@
 				"2": {
 					"patterns": [
 						{
+							"include": "#attributes"
+						},
+						{
 							"include": "$self"
 						}
 					]
@@ -58,7 +61,7 @@
 					"name": "keyword.operator.supertalk.text"
 				}
 			},
-			"end": "^(?!\\1[ \\t]+)",
+			"end": "^((?!\\1[ \\t]+)|(?=[ \\t]*\\*))",
 			"contentName": "string.unquoted.supertalk.text",
 			"patterns": [
 				{
@@ -81,6 +84,19 @@
 			"captures": {
 				"1": {
 					"name": "keyword.control.supertalk.section"
+				},
+				"2": {
+					"name": "entity.name.type.supertalk.sectionname"
+				}
+			}
+		},
+
+		"jump": {
+			"name": "supertalk.jump",
+			"match": "(->)(.*)$",
+			"captures": {
+				"1": {
+					"name": "keyword.control.supertalk.jump"
 				},
 				"2": {
 					"name": "entity.name.type.supertalk.sectionname"
@@ -183,7 +199,7 @@
 
 		"keywords": {
 			"name": "keyword.other",
-			"match": "(?i)\\b(true|false|none)\\b"
+			"match": "(?i)\\b(true|false|none|if|then|else)\\b"
 		}
 	},
 	"scopeName": "source.supertalk"

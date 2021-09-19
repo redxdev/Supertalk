@@ -46,6 +46,21 @@ const USupertalkValue* USupertalkBooleanValue::GetMember(FName MemberName) const
 	return nullptr;
 }
 
+bool USupertalkBooleanValue::IsValueEqualTo(const USupertalkValue* Other) const
+{
+	if (!IsValid(Other))
+	{
+		return false;
+	}
+
+	if (const USupertalkBooleanValue* OtherBool = Cast<USupertalkBooleanValue>(Other))
+	{
+		return bValue == OtherBool->bValue;
+	}
+
+	return true;
+}
+
 FText USupertalkTextValue::ToDisplayText() const
 {
 	return Text;
@@ -54,6 +69,21 @@ FText USupertalkTextValue::ToDisplayText() const
 const USupertalkValue* USupertalkTextValue::GetMember(FName MemberName) const
 {
 	return nullptr;
+}
+
+bool USupertalkTextValue::IsValueEqualTo(const USupertalkValue* Other) const
+{
+	if (!IsValid(Other))
+	{
+		return false;
+	}
+
+	if (const USupertalkTextValue* OtherText = Cast<USupertalkTextValue>(Other))
+	{
+		return Text.EqualTo(OtherText->Text);
+	}
+
+	return true;
 }
 
 FText USupertalkVariableValue::ToDisplayText() const
@@ -162,6 +192,21 @@ const USupertalkValue* USupertalkObjectValue::GetMember(FName MemberName) const
 	}
 
 	return nullptr;
+}
+
+bool USupertalkObjectValue::IsValueEqualTo(const USupertalkValue* Other) const
+{
+	if (!IsValid(Other))
+	{
+		return false;
+	}
+
+	if (const USupertalkObjectValue* OtherObj = Cast<USupertalkObjectValue>(Other))
+	{
+		return Object == OtherObj->Object;
+	}
+
+	return true;
 }
 
 #undef LOCTEXT_NAMESPACE

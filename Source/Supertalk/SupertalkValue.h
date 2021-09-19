@@ -20,6 +20,8 @@ public:
 	virtual FText ToDisplayText() const PURE_VIRTUAL(USupertalkValue::ToDisplayText,return FText();)
 	virtual const USupertalkValue* GetMember(FName MemberName) const PURE_VIRTUAL(USupertalkValue::GetMember,return nullptr;)
 
+	virtual bool IsValueEqualTo(const USupertalkValue* Other) const { return this == Other; }
+
 protected:
 	virtual const USupertalkValue* ResolveValue(const USupertalkPlayer* Player) const;
 };
@@ -35,6 +37,8 @@ public:
 
 	virtual FText ToDisplayText() const override;
 	virtual const USupertalkValue* GetMember(FName MemberName) const override;
+
+	virtual bool IsValueEqualTo(const USupertalkValue* Other) const override;
 };
 
 UCLASS()
@@ -48,6 +52,8 @@ public:
 
 	virtual FText ToDisplayText() const override;
 	virtual const USupertalkValue* GetMember(FName MemberName) const override;
+
+	virtual bool IsValueEqualTo(const USupertalkValue* Other) const override;
 };
 
 UCLASS()
@@ -62,10 +68,13 @@ public:
 	virtual FText ToDisplayText() const override;
 	virtual const USupertalkValue* GetMember(FName MemberName) const override;
 
+	virtual bool IsValueEqualTo(const USupertalkValue* Other) const override { checkNoEntry(); return false; }
+
 protected:
 	virtual const USupertalkValue* ResolveValue(const USupertalkPlayer* Player) const override;
 };
 
+// This should be replaced with an expression at some point.
 UCLASS()
 class SUPERTALK_API USupertalkMemberValue : public USupertalkVariableValue
 {
@@ -77,6 +86,8 @@ public:
 
 	virtual FText ToDisplayText() const override;
 	virtual const USupertalkValue* GetMember(FName MemberName) const override;
+
+	virtual bool IsValueEqualTo(const USupertalkValue* Other) const override { checkNoEntry(); return false; }
 
 protected:
 	virtual const USupertalkValue* ResolveValue(const USupertalkPlayer* Player) const override;
@@ -111,6 +122,8 @@ public:
 
 	virtual FText ToDisplayText() const override;
 	virtual const USupertalkValue* GetMember(FName MemberName) const override;
+
+	virtual bool IsValueEqualTo(const USupertalkValue* Other) const override;
 };
 
 USTRUCT(BlueprintType)

@@ -29,8 +29,9 @@ Supertalk is still under development. While it works, syntax is subject to chang
 * TODO: There's no sample project (yet) :(
 * TODO: Tool to automatically insert localization markup in script files.
 * TODO: Support for escape sequences in strings.
-* TODO: Conditional expressions (equals, not equals, less/greater than, etc)
-* TODO: Possibly change the syntax for conditional expressions, comma to denote an else block seems weird.
+* TODO: More expression operators (basic math, less/greater than, etc)
+  * Math operators will require explicit number type support
+* TODO: Choices do not currently support localization.
 
 ## Scripting Syntax + Features
 
@@ -97,22 +98,22 @@ Person1: This sentence will span
 -- that you have a character walk to a new position. You can do this with a "parallel" block. Note that this is not truly
 -- parallel in the sense of threading - this simply runs all statements inside it in order *and then* waits for all of them
 -- to complete if any are latent.
-{
+[
     > WalkToNewPosition
     Person2: I need to say something while someone walks to a new position.
-}
+]
 
 -- Supertalk supports passing along a list of choices with a dialogue line. You can then define what happens with each choice.
 -- By default you may only pass along a single statement to execute with a choice - if you want to pass multiple you can use
--- parenthesis (*not* curly braces - that would be a parallel block instead) to group multiple statements together.
+-- curly braces (*not* square brackets - that would be a parallel block instead) to group multiple statements together.
 Person1: Do you like cake or pie?
 * Cake
   Person1: You chose cake!
 * Pie
-  (
+  {
       Person1: You chose pie!
       > DoSomethingCool
-  )
+  }
 
 -- Depending on the game you might find it useful for emit "blank" lines to your integration. This syntax will cause
 -- FSupertalkLine::bIsBlankLine to be set to true. You can specify attributes here as well. The primary use-case is, for example,
@@ -152,15 +153,36 @@ Person2: I'm in section 4!
 MyTrueValue = true
 MyFalseValue = false
 
--- And then test the value using a question mark. The action immediately following the question mark is executed when the statement is true:
-MyTrueValue? Person1: I'll be executed because this conditional is true!
+-- And then test the value using an if statement.
+if MyTrueValue then Person1: I'll be executed because this conditional is true!
 
--- A comma after the first action will denote a single action that will be executed if the conditional is false. Note that indentation rules for text still applies:
-MyFalseValue? Person1: I won't be executed.
-,             Person1: I will be executed!
+-- You can add an else clause as well:
+if MyFalseValue then Person1: I won't be executed.
+else Person1: I will be executed!
 
--- You can omit the first action but include the comma if you only want something executed if the conditional is false:
-MyFalseValue?, Person1: I will be executed!
+-- You can chain if/else statements together:
+if MyFalseValue then Person1: I won't be executed.
+else if MyTrueValue then Person1: I will be executed!
+else Person1: I won't be executed.
+
+-- You can run multiple statements at a time using the usual block syntax with curly braces.
+-- Parallel blocks are also supported.
+if MyTrueValue then
+{
+  Person1: I can do one thing.
+  Person2: I can do another!
+}
+else
+[
+  Person1: If this were executed, it would be in parallel with the next command.
+  > SomeCommand
+]
+
+-- Basic operators are supported, including tests for equality and unary not operations.
+-- Note that the "not" syntax is similar to lua - using ~ instead of !.
+if ~FalseValue then Person1: I will be executed!
+if FalseValue == FalseValue then Person1: I will also be executed!
+if FalseValue ~= FalseValue then Person1: I won't be executed.
 
 -> Localization
 

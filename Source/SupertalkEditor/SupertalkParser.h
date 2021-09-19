@@ -3,6 +3,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "Supertalk/SupertalkExpression.h"
 #include "Supertalk/SupertalkLine.h"
 #include "SupertalkParser.generated.h"
 
@@ -19,8 +20,6 @@ enum class ESupertalkTokenType : uint8
     Separator,
 	Member,
     Assign,
-    AttrStart,
-    AttrEnd,
     Text,
     Asset,
     Choice,
@@ -35,7 +34,17 @@ enum class ESupertalkTokenType : uint8
 	StatementEnd,
 	LocalizationKey,
 	Directive,
-	Conditional
+	GroupStart,
+	GroupEnd,
+	If,
+	Then,
+	Else,
+	Equal,
+	NotEqual,
+	Not,
+
+	AttrStart = ParallelStart,
+	AttrEnd = ParallelEnd
 };
 
 /**
@@ -198,7 +207,13 @@ private:
 	bool PaParallel(FPaContext& InCtx, FSupertalkAction& OutAction);
 	bool PaQueue(FPaContext& InCtx, FSupertalkAction& OutAction);
 	bool PaConditional(FPaContext& InCtx, FSupertalkAction& OutAction);
-	
+
+	bool PaExpression(FPaContext& InCtx, TObjectPtr<USupertalkExpression>& OutExpression);
+	bool PaEqualityExpression(FPaContext& InCtx, TObjectPtr<USupertalkExpression>& OutExpression);
+	bool PaUnaryExpression(FPaContext& InCtx, TObjectPtr<USupertalkExpression>& OutExpression);
+	bool PaGroupExpression(FPaContext& InCtx, TObjectPtr<USupertalkExpression>& OutExpression);
+	bool PaValueExpression(FPaContext& InCtx, TObjectPtr<USupertalkExpression>& OutExpression);
+
 	bool PaValue(FPaContext& InCtx, TObjectPtr<USupertalkValue>& OutValue);
 	bool PaVariableValue(FPaContext& InCtx, TObjectPtr<USupertalkValue>& OutValue);
 	bool PaTextValue(FPaContext& InCtx, TObjectPtr<USupertalkValue>& OutValue);

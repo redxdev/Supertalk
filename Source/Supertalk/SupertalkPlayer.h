@@ -7,6 +7,7 @@
 #include "SupertalkPlayer.generated.h"
 
 class USupertalkValue;
+class USupertalkExpression;
 class USupertalkPlayer;
 
 UENUM()
@@ -131,7 +132,10 @@ public:
 	FName Variable;
 
 	UPROPERTY()
-	TObjectPtr<USupertalkValue> Value;
+	TObjectPtr<USupertalkValue> Value_DEPRECATED;
+
+	UPROPERTY()
+	TObjectPtr<USupertalkExpression> Expression;
 };
 
 UCLASS()
@@ -180,9 +184,11 @@ class SUPERTALK_API USupertalkConditionalParams : public USupertalkOperationPara
 	GENERATED_BODY()
 
 public:
-	// TODO: full expression support
 	UPROPERTY()
-	TObjectPtr<USupertalkValue> Value;
+	TObjectPtr<USupertalkValue> Value_DEPRECATED;
+
+	UPROPERTY()
+	TObjectPtr<USupertalkExpression> Expression;
 
 	UPROPERTY()
 	FSupertalkAction TrueAction;
@@ -299,7 +305,7 @@ class SUPERTALK_API USupertalkPlayer : public UObject
 public:
 	USupertalkPlayer();
 	
-	void SetVariable(FName Name, USupertalkValue* Value);
+	void SetVariable(FName Name, const USupertalkValue* Value);
 	void SetVariable(FName Name, bool Value);
 	void SetVariable(FName Name, FText Value);
 	
