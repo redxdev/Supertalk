@@ -31,6 +31,9 @@ Supertalk is still under development. While it works, syntax is subject to chang
 * TODO: Support for escape sequences in strings.
 * TODO: More expression operators (basic math, less/greater than, etc)
   * Math operators will require explicit number type support
+* TODO: Replace variable values with an expression type.
+  * Requires expression support in more places before this change can be made.
+  * Also requires replacing "member" values with an expression. Unsure how this will be implemented, will likely need to break backwards compatibility.
 
 ## Scripting Syntax + Features
 
@@ -262,6 +265,10 @@ line with data from the Supertalk player.
 #### `USupertalkValue`
 
 Base class for a "value" which can be anything - an object, text, datatable, etc.
+
+#### `USupertalkExpression`
+
+Base class for an evaluatable expression that results in a value.
 
 #### `ISupertalkDisplayInterface`
 
