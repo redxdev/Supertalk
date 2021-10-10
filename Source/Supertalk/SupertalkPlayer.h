@@ -136,6 +136,8 @@ public:
 
 	UPROPERTY()
 	TObjectPtr<USupertalkExpression> Expression;
+
+	virtual void PostLoad() override;
 };
 
 UCLASS()
@@ -195,6 +197,8 @@ public:
 
 	UPROPERTY()
 	FSupertalkAction FalseAction;
+
+	virtual void PostLoad() override;
 };
 
 struct FSupertalkActionKey

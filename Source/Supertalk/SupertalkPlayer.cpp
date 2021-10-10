@@ -56,6 +56,48 @@ void USupertalkScript::OpenSourceFileInExternalProgram()
 }
 #endif
 
+void USupertalkAssignParams::PostLoad()
+{
+	Super::PostLoad();
+
+	if (IsValid(Value_DEPRECATED))
+	{
+		if (!IsValid(Expression))
+		{
+			USupertalkExpression_Value* ValueExpr = NewObject<USupertalkExpression_Value>(Value_DEPRECATED->GetOuter());
+			ValueExpr->Value = Value_DEPRECATED;
+			Expression = ValueExpr;
+		}
+		else
+		{
+			UE_LOG(LogSupertalk, Warning, TEXT("USupertalkAssignParams::PostLoad() - Both Value_DEPRECATED and Expression are set, removing Value_DEPRECATED."));
+		}
+
+		Value_DEPRECATED = nullptr;
+	}
+}
+
+void USupertalkConditionalParams::PostLoad()
+{
+	Super::PostLoad();
+
+	if (IsValid(Value_DEPRECATED))
+	{
+		if (!IsValid(Expression))
+		{
+			USupertalkExpression_Value* ValueExpr = NewObject<USupertalkExpression_Value>(Value_DEPRECATED->GetOuter());
+			ValueExpr->Value = Value_DEPRECATED;
+			Expression = ValueExpr;
+		}
+		else
+		{
+			UE_LOG(LogSupertalk, Warning, TEXT("USupertalkConditionalParams::PostLoad() - Both Value_DEPRECATED and Expression are set, removing Value_DEPRECATED."));
+		}
+
+		Value_DEPRECATED = nullptr;
+	}
+}
+
 USupertalkPlayer::USupertalkPlayer()
 {
 	NextActionId = 1;
@@ -465,7 +507,7 @@ void USupertalkPlayer::HandleAssign(const FSupertalkActionWithContext& Context)
 	USupertalkAssignParams* Params = CastChecked<USupertalkAssignParams>(Context.Action.Params);
 
 	const USupertalkValue* Value = nullptr;
-	if (Params->Expression)
+	if (IsValid(Params->Expression))
 	{
 		Value = Params->Expression->Evaluate(this);
 	}
@@ -630,7 +672,7 @@ void USupertalkPlayer::HandleConditional(const FSupertalkActionWithContext& Cont
 	USupertalkConditionalParams* Params = CastChecked<USupertalkConditionalParams>(Context.Action.Params);
 
 	const USupertalkValue* Value = nullptr;
-	if (Params->Expression)
+	if (IsValid(Params->Expression))
 	{
 		Value = Params->Expression->Evaluate(this);
 	}
