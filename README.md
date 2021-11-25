@@ -47,6 +47,7 @@ script files.
 -- Very simple variables can be used. You can reference assets within a script which can be used
 -- to define who is speaking a line of dialogue, or if they implement the ISupertalkDisplayInterface
 -- they can be embedded within lines of dialogue themselves.
+-- Supertalk will attempt to resolve the variable to an asset as long as the value starts with a slash.
 -- In my own game, I have a "speaker" asset that would be used here. Speakers define a character's name,
 -- "voice" if there's audio associated with them, and portrait.
 Person1 = /Game/MyGame/Characters/Person1
@@ -314,6 +315,8 @@ delegate.
 For `OnPlayChoiceEvent` you must also pass an integer representing the index of the selected choice. If an invalid choice (or no choice, if that's allowed) is
 selected then you should pass `INDEX_NONE` as the index. Note that this will result in no choice statements being executed - the Supertalk player will simply
 continue to the next statement after the current set of choices.
+
+After you've created the Supertalk player, you can run scripts with `USupertalkPlayer::RunScript(USupertalkScript* Script)`.
 
 ## VM Internals
 
