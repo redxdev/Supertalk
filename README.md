@@ -14,6 +14,8 @@ its usages of `TObjectPtr`.
 with no UI. While it does integrate well with blueprint, initial integration with a game requires knowledge of C++ and no
 support will be offered beyond this documentation.
 
+**You can find a very simple sample project [here](https://github.com/redxdev/SupertalkSample)!** You should still read through this readme first, however, as the sample project is very simple and does not show off every feature.
+
 ## Warning
 
 Supertalk is still under development. While it works, syntax is subject to change.
@@ -26,7 +28,6 @@ Supertalk is still under development. While it works, syntax is subject to chang
 * Issue: The way the supertalk parser/importer emits errors is a bit odd, haven't quite figured out how to deal with the message log the
   right way. It generally works fine but might not be implemented the "right" way.
 * Issue: Localization support hasn't been very well tested.
-* TODO: There's no sample project (yet) :(
 * TODO: Tool to automatically insert localization markup in script files.
 * TODO: Support for escape sequences in strings.
 * TODO: More expression operators (basic math, less/greater than, etc)
