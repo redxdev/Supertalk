@@ -1,5 +1,7 @@
 # Supertalk
 
+**[Sample Project](https://github.com/redxdev/SupertalkSample)**
+
 Welcome to Supertalk! This is a simple dialogue scripting language for Unreal Engine created due to frustration with
 visual dialogue tree workflows.
 
@@ -13,8 +15,6 @@ its usages of `TObjectPtr`.
 **Supertalk is not a ready-to-use solution for dialogue systems!** It requires a good amount of integration work and comes
 with no UI. While it does integrate well with blueprint, initial integration with a game requires knowledge of C++ and no
 support will be offered beyond this documentation.
-
-**You can find a very simple sample project [here](https://github.com/redxdev/SupertalkSample)!** You should still read through this readme first, however, as the sample project is very simple and does not show off every feature.
 
 ## Warning
 
@@ -35,6 +35,7 @@ Supertalk is still under development. While it works, syntax is subject to chang
 * TODO: Replace variable values with an expression type.
   * Requires expression support in more places before this change can be made.
   * Also requires replacing "member" values with an expression. Unsure how this will be implemented, will likely need to break backwards compatibility.
+* TODO: track source file context at least in non-shipping builds to allow emitting better error messages at runtime.
 
 ## Scripting Syntax + Features
 
