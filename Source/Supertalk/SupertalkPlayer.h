@@ -331,7 +331,7 @@ public:
 	UFUNCTION(BlueprintCallable)
 	FSupertalkLatentFunctionFinalizer MakeLatentFunction();
 
-	UFUNCTION(BlueprintCallable, meta = (ScriptMethod))
+	UFUNCTION(BlueprintCallable)
 	static void CompleteFunction(FSupertalkLatentFunctionFinalizer Finalizer);
 	
 protected:

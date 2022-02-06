@@ -136,7 +136,10 @@ bool FSupertalkParser::FToken::IsIgnorable() const
 
 FString FSupertalkParser::FToken::GetGeneratedLocalizationKey() const
 {
-	return FString::Printf(TEXT("%s_L%dC%d"), *Context.File, Context.Line, Context.Col);
+	FString GameContentDir = FPaths::ProjectContentDir();
+	FString FileLocation = Context.File;
+	FPaths::MakePathRelativeTo(FileLocation, *GameContentDir);
+	return FString::Printf(TEXT("%s_L%dC%d"), *FileLocation, Context.Line, Context.Col);
 }
 
 TCHAR FSupertalkParser::FLxStream::ReadChar()
