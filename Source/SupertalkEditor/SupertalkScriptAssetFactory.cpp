@@ -41,27 +41,17 @@ UObject* USupertalkScriptAssetFactory::FactoryCreateText(UClass* InClass, UObjec
 
 	const FString FileContent(BufferEnd - Buffer, Buffer);
 
-	// We need to create a temporary object because we may need to throw it away later if import fails.
-	// TODO: There's gotta be a more efficient way to go about this.
-	USupertalkScript* ImportScript = NewObject<USupertalkScript>();
-	USupertalkScript* Script = nullptr;
-	//USupertalkScript* Script = NewObject<USupertalkScript>(InParent, InClass, InName, Flags);
+	USupertalkScript* Script = NewObject<USupertalkScript>(InParent, InName, Flags | RF_Transactional);
 
 	FModuleManager::GetModuleChecked<FMessageLogModule>("MessageLog").GetLogListing(SupertalkMessageLogName)->ClearMessages();
 	FMessageLog MessageLog(SupertalkMessageLogName);
 	
 	TSharedRef<FSupertalkParser> Parser = FSupertalkParser::Create(&MessageLog);
 
-	if (Parser->Parse(GetCurrentFilename(), FileContent, ImportScript))
+	if (Parser->Parse(GetCurrentFilename(), FileContent, Script))
 	{
-		ImportScript->AssetImportData->Update(GetCurrentFilename());
-
-		Script = DuplicateObject<USupertalkScript>(ImportScript, InParent, InName);
-		Script->SetFlags(Flags);
+		Script->AssetImportData->Update(GetCurrentFilename());
 	}
-
-	ImportScript->ConditionalBeginDestroy();
-	ImportScript = nullptr;
 
 	// For some reason the min severity needs to be one level below what we actually want.
 	MessageLog.Notify(LOCTEXT("SupertalkCompilerErrorsReported", "Errors were reported by the Supertalk compiler"));
@@ -111,17 +101,19 @@ EReimportResult::Type USupertalkScriptAssetFactory::Reimport(UObject* Obj)
 	}
 
 	bool OutCancelled = false;
-	if (ImportObject(Script->GetClass(), Script->GetOuter(), *Script->GetName(), RF_Public | RF_Standalone, Filename, nullptr, OutCancelled) != nullptr)
+	if (ImportObject(Script->GetClass(), Script->GetOuter(), Script->GetFName(), Script->GetFlags(), Filename, nullptr, OutCancelled) != nullptr)
 	{
+		UE_LOG(LogSupertalk, Log, TEXT("Imported successfully"));
+
+		Script->AssetImportData->Update(Filename);
+		
 		// Try to find the outer package so we can dirty it up
 		if (Script->GetOuter())
 		{
 			Script->GetOuter()->MarkPackageDirty();
 		}
-		else
-		{
-			Script->MarkPackageDirty();
-		}
+		
+		Script->MarkPackageDirty();
 		
 		return EReimportResult::Succeeded;
 	}
