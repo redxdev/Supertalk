@@ -23,11 +23,6 @@ FText FSupertalkLine::GetSpeakerName(const USupertalkPlayer* Player) const
 	return FText();
 }
 
-bool IsMemberExpression(const FString& Input)
-{
-	return Input.Contains(TEXT("."));
-}
-
 FText FSupertalkLine::FormatText(const USupertalkPlayer* Player) const
 {
 	return FSupertalkUtilities::FormatText(Text, Player, true);
