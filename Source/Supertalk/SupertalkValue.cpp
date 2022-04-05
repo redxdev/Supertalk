@@ -31,6 +31,17 @@ FText USupertalkValue::ToResolvedDisplayText(const USupertalkPlayer* Player) con
 	return ToDisplayText();
 }
 
+FString USupertalkValue::ToResolvedInternalString(const USupertalkPlayer* Player) const
+{
+	const USupertalkValue* Value = GetResolvedValue(Player);
+	if (IsValid(Value))
+	{
+		return Value->ToInternalString();
+	}
+
+	return ToInternalString();
+}
+
 const USupertalkValue* USupertalkValue::ResolveValue(const USupertalkPlayer* Player) const
 {
 	return nullptr;
@@ -39,6 +50,11 @@ const USupertalkValue* USupertalkValue::ResolveValue(const USupertalkPlayer* Pla
 FText USupertalkBooleanValue::ToDisplayText() const
 {
 	return bValue ? LOCTEXT("True", "true") : LOCTEXT("False", "false");
+}
+
+FString USupertalkBooleanValue::ToInternalString() const
+{
+	return bValue ? TEXT("1") : TEXT("0");
 }
 
 const USupertalkValue* USupertalkBooleanValue::GetMember(FName MemberName) const
@@ -66,6 +82,13 @@ FText USupertalkTextValue::ToDisplayText() const
 	return Text;
 }
 
+FString USupertalkTextValue::ToInternalString() const
+{
+	FString Result = Text.ToString();
+	Result.ReplaceCharWithEscapedCharInline();
+	return Result;
+}
+
 const USupertalkValue* USupertalkTextValue::GetMember(FName MemberName) const
 {
 	return nullptr;
@@ -91,6 +114,12 @@ FText USupertalkVariableValue::ToDisplayText() const
 	return FText::FromName(Variable);
 }
 
+FString USupertalkVariableValue::ToInternalString() const
+{
+	checkNoEntry();
+	return ToDisplayText().ToString();
+}
+
 const USupertalkValue* USupertalkVariableValue::GetMember(FName MemberName) const
 {
 	return nullptr;
@@ -110,6 +139,12 @@ FText USupertalkMemberValue::ToDisplayText() const
 	}
 
 	return FText::FromString(Str);
+}
+
+FString USupertalkMemberValue::ToInternalString() const
+{
+	checkNoEntry();
+	return ToDisplayText().ToString();
 }
 
 const USupertalkValue* USupertalkMemberValue::GetMember(FName MemberName) const
@@ -168,6 +203,11 @@ FText USupertalkObjectValue::ToDisplayText() const
 	}
 
 	return FText();
+}
+
+FString USupertalkObjectValue::ToInternalString() const
+{
+	return IsValid(Object) ? Object.GetPath() : TEXT("None");
 }
 
 const USupertalkValue* USupertalkObjectValue::GetMember(FName MemberName) const

@@ -36,6 +36,11 @@ Supertalk is still under development. While it works, syntax is subject to chang
   * Requires expression support in more places before this change can be made.
   * Also requires replacing "member" values with an expression. Unsure how this will be implemented, will likely need to break backwards compatibility.
 * TODO: track source file context at least in non-shipping builds to allow emitting better error messages at runtime.
+* TODO: True function call parsing
+  * Current method of calling functions relies on FText and CallFunctionByNameWithArguments, both of which are bad since we can't pass complex types around.
+* TODO: Support for additional types
+  * Integers, floats, etc.
+  * Should be done as part of the new function call parsing system
 
 ## Scripting Syntax + Features
 
@@ -96,8 +101,10 @@ Person1: This sentence will span
 -- Supertalk supports calling events on blueprints and UFUNCTIONs on C++ UObjects. See the integration guide for an
 -- example of how to do this. Supertalk even supports latent actions here (events that take time) and will wait on them
 -- if they have been configured appropriately.
+-- You can use {Formatting} syntax to pass variables to functions.
 > Wait 10
 > DoSomethingCool
+> DoSomethingElse {Variable1}
 
 -- In some cases you may want to do multiple things at a time. For example, display a line of dialogue at the same time
 -- that you have a character walk to a new position. You can do this with a "parallel" block. Note that this is not truly
@@ -250,9 +257,6 @@ executes supertalk scripts.
 
 Each Supertalk player contains its own state of execution and list of variables. You can get and set variables on it manually as well.
 
-If you want to expose variables from your game without manually setting variables, you can subclass `USupertalkPlayer` and implement
-`USupertalkPlayer::GetExternalVariable` which will be called if a variable cannot be found.
-
 #### `USupertalkScript`
 
 This is the main asset type for Supertalk.
@@ -308,6 +312,12 @@ STPlayer->OnPlayChoiceEvent.BindUObject(this, &ThisClass::OnPlayChoice);
 // If you want to be able to call functions on the current object (or some other object) from within a script, you need to add a function call receiver.
 // Any public UFUNCTION (or blueprint event or function) will be callable, and the syntax for calling a command is the same as the "ke" console command.
 STPlayer->AddFunctionCallReceiver(this);
+
+// If you want to expose global variables to a script without having to set them manually, you can add a "variable provider" which is a function that is
+// called when a variable isn't found in the player itself. For example, if a variable named `Actor_Something` is found you could parse out the "Something"
+// and return a value pointing to the actor named "Something" in the current level.
+// Providers are executed in order until one returns something other than null. If they all return null then the variable doesn't exist.
+STPlayer->AddVariableProvider(FSupertalkProvideVariableDelegate::CreateUObject(this, &ThisClass::VarProvider_Actors))
 ```
 
 `OnPlayLineEvent` and `OnPlayChoiceEvent` are important to implement or else you will not find out when a dialogue line/choice has been played. When you are

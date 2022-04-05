@@ -3,6 +3,7 @@
 #include "SupertalkPlayer.h"
 #include "Supertalk.h"
 #include "SupertalkExpression.h"
+#include "SupertalkUtilities.h"
 #include "SupertalkValue.h"
 #include "EditorFramework/AssetImportData.h"
 #include "Logging/MessageLog.h"
@@ -140,7 +141,19 @@ const USupertalkValue* USupertalkPlayer::GetVariable(FName Name) const
 		return *Value;
 	}
 
-	return GetExternalVariable(Name);
+	for (const FSupertalkProvideVariableDelegate& Provider : VariableProviders)
+	{
+		if (Provider.IsBound())
+		{
+			const USupertalkValue* Result = Provider.Execute(this, Name);
+			if (Result != nullptr)
+			{
+				return Result;
+			}
+		}
+	}
+
+	return nullptr;
 }
 
 void USupertalkPlayer::ClearVariables()
@@ -152,6 +165,12 @@ void USupertalkPlayer::AddFunctionCallReceiver(UObject* Obj)
 {
 	check(Obj);
 	FunctionCallReceivers.AddUnique(Obj);
+}
+
+void USupertalkPlayer::AddVariableProvider(FSupertalkProvideVariableDelegate Provider)
+{
+	check(Provider.IsBound());
+	VariableProviders.Add(Provider);
 }
 
 void USupertalkPlayer::RunScript(const USupertalkScript* Script, FName InitialSection)
@@ -214,11 +233,6 @@ FSupertalkLatentFunctionFinalizer USupertalkPlayer::MakeLatentFunction()
 void USupertalkPlayer::CompleteFunction(FSupertalkLatentFunctionFinalizer Finalizer)
 {
 	Finalizer.Complete();
-}
-
-const USupertalkValue* USupertalkPlayer::GetExternalVariable(FName Name) const
-{
-	return nullptr;
 }
 
 void USupertalkPlayer::OnPlayLine(const FSupertalkLine& Line, FSupertalkEventCompletedDelegate Completed)
@@ -542,10 +556,14 @@ void USupertalkPlayer::HandleCall(const FSupertalkActionWithContext& Context)
 	CurrentFunctionFinalizer = &Finalizer;
 	bIsFunctionCallLatent = false;
 
+	// TODO: shouldn't be using FText for this. It's slow, it's converting back and forth between FText/FString.
+	// Function calls need to be rewritten to support actual objects at some point and not strings, so this will go away whenever that happens.
+	const FString FormattedArgs = FSupertalkUtilities::FormatText(FText::FromString(Params->Arguments), this, false).ToString();
+	
 	bool bCalledFunction = false;
 	for (UObject* Receiver : FunctionCallReceivers)
 	{
-		if (Receiver->CallFunctionByNameWithArguments(*Params->Arguments, *GLog, nullptr, true))
+		if (Receiver->CallFunctionByNameWithArguments(*FormattedArgs, *GLog, nullptr, true))
 		{
 			bCalledFunction = true;
 			break;

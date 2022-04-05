@@ -1,5 +1,10 @@
 This file contains information about major changes and features.
 
+# 0.4
+
+* Function calls can now have variables passed to them as arguments.
+  * This is somewhat hacky at the moment, still requiring arguments to be parsed out from a string. This functionality will eventually be rewritten.
+
 # 0.3
 
 * Choices can now have localization keys applied.

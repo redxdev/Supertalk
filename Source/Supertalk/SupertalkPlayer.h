@@ -286,6 +286,7 @@ DECLARE_DELEGATE(FSupertalkEventCompletedDelegate);
 DECLARE_DELEGATE_OneParam(FSupertalkChoiceCompletedDelegate, int32);
 DECLARE_DELEGATE_TwoParams(FSupertalkPlayLineDelegate, const FSupertalkLine&, FSupertalkEventCompletedDelegate Completed);
 DECLARE_DELEGATE_ThreeParams(FSupertalkPlayChoiceDelegate, const FSupertalkLine&, const TArray<FText>& Choices, FSupertalkChoiceCompletedDelegate Completed);
+DECLARE_DELEGATE_RetVal_TwoParams(const USupertalkValue*, FSupertalkProvideVariableDelegate, const USupertalkPlayer* Player, FName Name);
 
 // Used to let a script know that a latent function has completed.
 USTRUCT(BlueprintType)
@@ -317,6 +318,7 @@ public:
 	void ClearVariables();
 
 	void AddFunctionCallReceiver(UObject* Obj);
+	void AddVariableProvider(FSupertalkProvideVariableDelegate Provider);
 
 	void RunScript(const class USupertalkScript* Script, FName InitialSection = NAME_None);
 	void Stop();
@@ -336,9 +338,6 @@ public:
 	
 protected:
 
-	// Called if GetVariable fails, meant to be overridden.
-	virtual const USupertalkValue* GetExternalVariable(FName Name) const;
-
 	virtual void OnPlayLine(const FSupertalkLine& Line, FSupertalkEventCompletedDelegate Completed);
 	virtual void OnPlayChoice(const FSupertalkLine& Line, const TArray<FText>& Choices, FSupertalkChoiceCompletedDelegate Completed);
 
@@ -354,6 +353,8 @@ private:
 
 	UPROPERTY()
 	TArray<TObjectPtr<UObject>> FunctionCallReceivers;
+
+	TArray<FSupertalkProvideVariableDelegate> VariableProviders;
 
 	bool bIsFunctionCallLatent;
 	FSupertalkLatentFunctionFinalizer* CurrentFunctionFinalizer = nullptr;

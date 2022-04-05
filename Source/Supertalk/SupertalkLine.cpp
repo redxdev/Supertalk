@@ -1,8 +1,8 @@
 ﻿// Copyright (c) MissiveArts LLC
 
 #include "SupertalkLine.h"
-#include "Supertalk.h"
 #include "SupertalkPlayer.h"
+#include "SupertalkUtilities.h"
 #include "SupertalkValue.h"
 #include "Internationalization/TextFormatter.h"
 
@@ -30,48 +30,5 @@ bool IsMemberExpression(const FString& Input)
 
 FText FSupertalkLine::FormatText(const USupertalkPlayer* Player) const
 {
-	check(Player);
-	
-	FTextFormat Fmt(Text);
-	
-	TArray<FString> ParameterNames;
-	FText::GetFormatPatternParameters(Fmt, ParameterNames);
-
-	FFormatNamedArguments FormatArgs;
-	for (const FString& Param : ParameterNames)
-	{
-		if (IsMemberExpression(Param))
-		{
-			TArray<FString> MemberStrings;
-			Param.ParseIntoArrayWS(MemberStrings, TEXT("."));
-			check(MemberStrings.Num() > 0);
-
-			FName VarName = FName(MemberStrings[0]);
-			MemberStrings.RemoveAt(0);
-
-			USupertalkMemberValue* MemberValue = NewObject<USupertalkMemberValue>();
-			MemberValue->Variable = VarName;
-			for (const FString& Member : MemberStrings)
-			{
-				MemberValue->Members.Add(FName(Member));
-			}
-
-			FormatArgs.Add(Param, MemberValue->ToResolvedDisplayText(Player));
-		}
-		else
-		{
-			FName VarName(Param);
-			const USupertalkValue* Value = Player->GetVariable(VarName);
-			if (Value)
-			{
-				FormatArgs.Add(Param, Value->ToResolvedDisplayText(Player));
-			}
-			else
-			{
-				FormatArgs.Add(Param, FText::FromName(VarName));
-			}
-		}
-	}
-	
-	return FText::Format(Fmt, FormatArgs);
+	return FSupertalkUtilities::FormatText(Text, Player, true);
 }
