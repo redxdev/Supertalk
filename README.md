@@ -55,12 +55,12 @@ script files.
 -- to define who is speaking a line of dialogue, or if they implement the ISupertalkDisplayInterface
 -- they can be embedded within lines of dialogue themselves.
 -- Supertalk will attempt to resolve the variable to an asset as long as the value starts with a slash.
--- In my own game, I have a "speaker" asset that would be used here. Speakers define a character's name,
--- "voice" if there's audio associated with them, and portrait.
+-- For example, you could have a "character" asset that would be used here that contains references to
+-- portrait images, the character's name, etc.
 Person1 = /Game/MyGame/Characters/Person1
 Person2 = /Game/MyGame/Characters/Person2
 
--- This will play a few lines of dialogue.
+-- This will play a line of dialogue.
 Person1: Hello, world!
 
 -- You can use FString::Format syntax to reference variables.
@@ -84,12 +84,12 @@ Person3: I will appear as "Person3".
 Person1,"An alternate name": I'm still {Person1} but with a different name.
 
 -- You can pass along attributes with a line - each attribute, separated by a comma, is passed as an FName
--- as part of the line of dialogue. I use this to define a position for character portraits to appear, along with
--- which portrait should be displayed.
+-- as part of the line of dialogue. This can be used, for example, to define a position for character portraits to appear
+-- or what emotion a character should be showing.
 Person2 [Left, Sad]: I'm sad now :(
 
--- You can add linebreaks freely without breaking up the dialogue lines after the first one as long as they are
--- indented. Line breaks will only be added to the final output if you have an empty line (a la markdown).
+-- You can add linebreaks freely as long as they are indented. Line breaks will only be added to the final output if
+-- you have an empty line (similar to markdown).
 Person1: This sentence will span
          multiple lines in the script
          but will appear as a single
@@ -99,9 +99,9 @@ Person1: This sentence will span
          line to go along with the first.
 
 -- Supertalk supports calling events on blueprints and UFUNCTIONs on C++ UObjects. See the integration guide for an
--- example of how to do this. Supertalk even supports latent actions here (events that take time) and will wait on them
+-- example of how to do this. Supertalk even supports latent actions (events that take time) and will wait on them
 -- if they have been configured appropriately.
--- You can use {Formatting} syntax to pass variables to functions.
+-- You can use {Formatting} syntax to pass variables to functions (with some limitations).
 > Wait 10
 > DoSomethingCool
 > DoSomethingElse {Variable1}
@@ -128,17 +128,18 @@ Person1: Do you like cake or pie?
   }
 
 -- Depending on the game you might find it useful for emit "blank" lines to your integration. This syntax will cause
--- FSupertalkLine::bIsBlankLine to be set to true. You can specify attributes here as well. The primary use-case is, for example,
--- to setup multiple character portraits without requiring them to actually speak.
+-- FSupertalkLine::bIsBlankLine to be set to true. The primary use-case is, for example, to setup multiple character portraits
+-- without requiring them to actually speak.
 Person1 [Sad];
 Person2 [Happy];
 
 -- Supertalk supports having multiple "sections" in a single script. Only the first section will execute by default, but you can
 -- either include a jump (using an arrow ->) or from C++ tell the supertalk player to run an alternate section. Jumps are normal
 -- statements like commands or dialogue lines and as such can be used pretty much anywhere.
--- Note that there is *not* any fall-through from one section to another. If you reach the end of a section and there is no jump,
--- the next section will *not* play automatically.
--- The first section of a script will *always* play by default and if you don't explicitly give it a name it'll be named "Default".
+-- Note that there is *not* any fall-through from one section to another. If you reach the end of a section and there is no jump then
+-- the script will simply stop instead of falling through to the next section.
+--
+-- The first section - whether named or not - will play when "None" is passed as the initial section to play.
 
 -> Section2
 
@@ -161,7 +162,7 @@ Person2: I'm in section 4!
 -> Conditionals
 
 # Conditionals
--- Supertalk supports very basic support for control flow/conditional execution. You can set a variable to true or false either in a script or from C++:
+-- Supertalk has very basic support for control flow/conditional execution. You can set a variable to true or false either in a script or from C++:
 MyTrueValue = true
 MyFalseValue = false
 
@@ -191,7 +192,7 @@ else
 ]
 
 -- Basic operators are supported, including tests for equality and unary not operations.
--- Note that the "not" syntax is similar to lua - using ~ instead of !.
+-- Note that the "not" syntax is similar to lua using ~ instead of !.
 if ~FalseValue then Person1: I will be executed!
 if FalseValue == FalseValue then Person1: I will also be executed!
 if FalseValue ~= FalseValue then Person1: I won't be executed.
@@ -200,10 +201,11 @@ if FalseValue ~= FalseValue then Person1: I won't be executed.
 
 # Localization
 
--- Adding '@' after the list of attributes (if they exist) will be used as the key for the dialogue line, for use in i18n. Keys are any arbitrary value that are used to
--- lookup alternative translations - see https://docs.unrealengine.com/4.26/en-US/ProductionPipelines/Localization/Formatting/ for more information.
--- If you don't specify a key, one will be automatically assigned by Unreal. Unfortunately, if the line changes, so will the assigned id. As such,
--- you should always assign keys to any line that can be localized.
+-- Adding '@' after the list of attributes (if they exist) will be used as the key for the dialogue line, for use in i18n.
+-- Keys are any arbitrary value that are used to lookup alternative translations - see
+-- https://docs.unrealengine.com/4.26/en-US/ProductionPipelines/Localization/Formatting/ for more information.
+-- If you don't specify a key then one will be automatically assigned. Unfortunately if the line changes so will the
+-- automatically assigned id. As such you should always assign keys manually to any line that can be localized.
 -- At some point a tool to auto-generate keys and insert them into supertalk scripts would be nice but it doesn't currently exist.
 Person1 [Happy] @L01A: This line could be translated!
 
@@ -216,12 +218,13 @@ Person1 @L01B: Here are some choices that could be translated.
 -- If a namespace isn't specified, the default namespace "Supertalk.Script.Default" will be used.
 Person1 [Sad] @Dialogue.Example/L01C: This line could also be translated!
 
--- String literals (which are stored internally as FText anyway) can be given localization keys as well, with the same syntax.
+-- String literals (which are stored internally as FText) can be given localization keys as well, with the same syntax.
 MyLocalizedString = @Dialogue.Example/L01D "I'm a string literal that can be localized!"
 
 -- You can apply a single namespace to everything below it with a "namespace directive".
--- This applies regardless of section due to namespace directives being resolved at import time rather than runtime.
--- Specifying a namespace directly (such as in the previous two examples) will override this directive for that line of dialogue.
+-- This applies regardless of section due to namespace directives being resolved at the time of importing the script rather than
+-- at runtime. Specifying a namespace directly (such as in the previous two examples) will override the namespace directive where
+-- it is used.
 !namespace Dialogue.Example
 
 -- That's it for localization!
