@@ -147,4 +147,12 @@ struct SUPERTALK_API FSupertalkTableRow : public FTableRowBase
 public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 	FText Value;
+
+#if WITH_EDITORONLY_DATA
+
+	// Notes for developers, stripped out of non-editor builds.
+	UPROPERTY(EditAnywhere, meta = (MultiLine = true))
+	FString Notes;
+
+#endif
 };
