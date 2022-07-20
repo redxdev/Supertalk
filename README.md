@@ -35,6 +35,9 @@ Supertalk is still under development. While it works, syntax is subject to chang
 * TODO: Replace variable values with an expression type.
   * Requires expression support in more places before this change can be made.
   * Also requires replacing "member" values with an expression. Unsure how this will be implemented, will likely need to break backwards compatibility.
+* TODO: Rework `USupertalkValue` to not require an entirely new object for every value being passed around.
+  * Potentially support raw UObjects without a wrapper object.
+  * Refactor things to support passing around basic types without a UObject allocation.
 * TODO: track source file context at least in non-shipping builds to allow emitting better error messages at runtime.
 * TODO: True function call parsing
   * Current method of calling functions relies on FText and CallFunctionByNameWithArguments, both of which are bad since we can't pass complex types around.
@@ -320,7 +323,11 @@ STPlayer->AddFunctionCallReceiver(this);
 // called when a variable isn't found in the player itself. For example, if a variable named `Actor_Something` is found you could parse out the "Something"
 // and return a value pointing to the actor named "Something" in the current level.
 // Providers are executed in order until one returns something other than null. If they all return null then the variable doesn't exist.
-STPlayer->AddVariableProvider(FSupertalkProvideVariableDelegate::CreateUObject(this, &ThisClass::VarProvider_Actors))
+STPlayer->AddVariableProvider(FSupertalkProvideVariableDelegate::CreateUObject(this, &ThisClass::VarProvider_Actors));
+
+// You can also expose all properties of an object to a script. The second argument is a "filter" - properties will only be exposed
+// if they exist on that class or child classes, not on superclasses.
+STPlayer->AddVariableProvider(this, &ThisClass::StaticClass());
 ```
 
 `OnPlayLineEvent` and `OnPlayChoiceEvent` are important to implement or else you will not find out when a dialogue line/choice has been played. When you are

@@ -298,8 +298,20 @@ struct SUPERTALK_API FSupertalkLatentFunctionFinalizer
 
 	FORCEINLINE void Complete() { Completed.ExecuteIfBound(); }
 
-	private:
+private:
 	FSupertalkEventCompletedDelegate Completed;
+};
+
+USTRUCT()
+struct FSupertalkVariableProviderObject
+{
+	GENERATED_BODY()
+
+	UPROPERTY()
+	TObjectPtr<UObject> Object;
+
+	UPROPERTY()
+	TObjectPtr<UClass> ClassFilter;
 };
 
 UCLASS()
@@ -319,6 +331,7 @@ public:
 
 	void AddFunctionCallReceiver(UObject* Obj);
 	void AddVariableProvider(FSupertalkProvideVariableDelegate Provider);
+	void AddVariableProvider(UObject* Object, UClass* ClassFilter = nullptr);
 
 	void RunScript(const class USupertalkScript* Script, FName InitialSection = NAME_None);
 	void Stop();
@@ -354,7 +367,9 @@ private:
 	UPROPERTY()
 	TArray<TObjectPtr<UObject>> FunctionCallReceivers;
 
-	TArray<FSupertalkProvideVariableDelegate> VariableProviders;
+	UPROPERTY()
+	TArray<FSupertalkVariableProviderObject> VariableProviderObjects;
+	TArray<FSupertalkProvideVariableDelegate> VariableProviderDelegates;
 
 	bool bIsFunctionCallLatent;
 	FSupertalkLatentFunctionFinalizer* CurrentFunctionFinalizer = nullptr;

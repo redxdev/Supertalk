@@ -135,13 +135,58 @@ void USupertalkPlayer::SetVariable(FName Name, FText Value)
 
 const USupertalkValue* USupertalkPlayer::GetVariable(FName Name) const
 {
-	const TObjectPtr<USupertalkValue>* Value = Variables.Find(Name);
-	if (Value != nullptr)
+	const TObjectPtr<USupertalkValue>* VarValue = Variables.Find(Name);
+	if (VarValue != nullptr)
 	{
-		return *Value;
+		return *VarValue;
 	}
 
-	for (const FSupertalkProvideVariableDelegate& Provider : VariableProviders)
+	for (const FSupertalkVariableProviderObject& Provider : VariableProviderObjects)
+	{
+		if (!Provider.Object)
+		{
+			continue;
+		}
+
+		UClass* Class = Provider.Object->GetClass();
+		if (FProperty* Property = Class->FindPropertyByName(Name))
+		{
+			UClass* OwnerClass = Property->GetOwnerClass();
+			if (Provider.ClassFilter && (!OwnerClass || !OwnerClass->IsChildOf(Provider.ClassFilter)))
+			{
+				continue;
+			}
+
+			if (FObjectPropertyBase* ObjProp = CastField<FObjectPropertyBase>(Property))
+			{
+				USupertalkObjectValue* Value = NewObject<USupertalkObjectValue>(const_cast<USupertalkPlayer*>(this));
+				Value->Object = ObjProp->GetObjectPropertyValue_InContainer(Provider.Object);
+				return Value;
+			}
+			else if (FBoolProperty* BoolProp = CastField<FBoolProperty>(Property))
+			{
+				USupertalkBooleanValue* Value = NewObject<USupertalkBooleanValue>(const_cast<USupertalkPlayer*>(this));
+				Value->bValue = BoolProp->GetPropertyValue_InContainer(Provider.Object);
+				return Value;
+			}
+			else if (FTextProperty* TextProp = CastField<FTextProperty>(Property))
+			{
+				USupertalkTextValue* Value = NewObject<USupertalkTextValue>(const_cast<USupertalkPlayer*>(this));
+				Value->Text = TextProp->GetPropertyValue_InContainer(Provider.Object);
+				return Value;
+			}
+			else
+			{
+				FString Str;
+				Property->ExportText_InContainer(0, Str, Provider.Object, Provider.Object, nullptr, PPF_None);
+				USupertalkTextValue* Value = NewObject<USupertalkTextValue>(const_cast<USupertalkPlayer*>(this));
+				Value->Text = FText::FromString(Str);
+				return Value;
+			}
+		}
+	}
+
+	for (const FSupertalkProvideVariableDelegate& Provider : VariableProviderDelegates)
 	{
 		if (Provider.IsBound())
 		{
@@ -170,7 +215,16 @@ void USupertalkPlayer::AddFunctionCallReceiver(UObject* Obj)
 void USupertalkPlayer::AddVariableProvider(FSupertalkProvideVariableDelegate Provider)
 {
 	check(Provider.IsBound());
-	VariableProviders.Add(Provider);
+	VariableProviderDelegates.Add(Provider);
+}
+
+void USupertalkPlayer::AddVariableProvider(UObject* Object, UClass* ClassFilter)
+{
+	if (ensure(Object))
+	{
+		check(!ClassFilter || Object->IsA(ClassFilter));
+		VariableProviderObjects.Add({ Object, ClassFilter });
+	}
 }
 
 void USupertalkPlayer::RunScript(const USupertalkScript* Script, FName InitialSection)
