@@ -326,7 +326,7 @@ STPlayer->AddFunctionCallReceiver(this);
 STPlayer->AddVariableProvider(FSupertalkProvideVariableDelegate::CreateUObject(this, &ThisClass::VarProvider_Actors));
 
 // You can also expose all properties of an object to a script. The second argument is a "filter" - properties will only be exposed
-// if they exist on that class or child classes, not on superclasses.
+// if they exist on child classes (*not including the class itself*)
 STPlayer->AddVariableProvider(this, &ThisClass::StaticClass());
 ```
 

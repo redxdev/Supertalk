@@ -152,7 +152,7 @@ const USupertalkValue* USupertalkPlayer::GetVariable(FName Name) const
 		if (FProperty* Property = Class->FindPropertyByName(Name))
 		{
 			UClass* OwnerClass = Property->GetOwnerClass();
-			if (Provider.ClassFilter && (!OwnerClass || !OwnerClass->IsChildOf(Provider.ClassFilter)))
+			if (Provider.ClassFilter && (!OwnerClass || OwnerClass == Provider.ClassFilter || !OwnerClass->IsChildOf(Provider.ClassFilter)))
 			{
 				continue;
 			}
