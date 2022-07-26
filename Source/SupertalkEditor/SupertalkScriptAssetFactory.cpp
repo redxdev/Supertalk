@@ -48,10 +48,12 @@ UObject* USupertalkScriptAssetFactory::FactoryCreateText(UClass* InClass, UObjec
 	
 	TSharedRef<FSupertalkParser> Parser = FSupertalkParser::Create(&MessageLog);
 
-	if (Parser->Parse(GetCurrentFilename(), FileContent, Script))
+	if (!Parser->Parse(GetCurrentFilename(), FileContent, Script))
 	{
-		Script->AssetImportData->Update(GetCurrentFilename());
+		return nullptr;
 	}
+
+	Script->AssetImportData->Update(GetCurrentFilename());
 
 	// For some reason the min severity needs to be one level below what we actually want.
 	MessageLog.Notify(LOCTEXT("SupertalkCompilerErrorsReported", "Errors were reported by the Supertalk compiler"));
