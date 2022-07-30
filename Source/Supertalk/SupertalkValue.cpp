@@ -1,6 +1,8 @@
 ﻿// Copyright (c) MissiveArts LLC
 
 #include "SupertalkValue.h"
+
+#include "Supertalk.h"
 #include "SupertalkPlayer.h"
 
 #define LOCTEXT_NAMESPACE "SupertalkValue"
@@ -40,6 +42,63 @@ FString USupertalkValue::ToResolvedInternalString(const USupertalkPlayer* Player
 	}
 
 	return ToInternalString();
+}
+
+bool USupertalkValue::PropertyToValue(USupertalkPlayer* Player, void* ValuePtr, UObject* Owner, FProperty* Property, bool bValueIsContainer, USupertalkValue*& OutResult)
+{
+	check(ValuePtr);
+	check(Property);
+
+	UObject* Outer = IsValid(Player) ? static_cast<UObject*>(Player) : static_cast<UObject*>(GetTransientPackage());
+
+	if (FObjectPropertyBase* ObjProp = CastField<FObjectPropertyBase>(Property))
+	{
+		USupertalkObjectValue* Value = NewObject<USupertalkObjectValue>(Outer);
+		Value->Object = bValueIsContainer ? ObjProp->GetObjectPropertyValue_InContainer(ValuePtr) : ObjProp->GetObjectPropertyValue(ValuePtr);
+		OutResult = Value;
+		return true;
+	}
+	else if (FBoolProperty* BoolProp = CastField<FBoolProperty>(Property))
+	{
+		USupertalkBooleanValue* Value = NewObject<USupertalkBooleanValue>(Outer);
+		Value->bValue = bValueIsContainer ? BoolProp->GetPropertyValue_InContainer(ValuePtr) : BoolProp->GetPropertyValue(ValuePtr);
+		OutResult = Value;
+		return true;
+	}
+	else if (FTextProperty* TextProp = CastField<FTextProperty>(Property))
+	{
+		USupertalkTextValue* Value = NewObject<USupertalkTextValue>(Outer);
+		Value->Text = bValueIsContainer ? TextProp->GetPropertyValue_InContainer(ValuePtr) : TextProp->GetPropertyValue(ValuePtr);
+		OutResult = Value;
+		return true;
+	}
+	else if (FMapProperty* MapProp = CastField<FMapProperty>(Property))
+	{
+		USupertalkMapPropertyValue* Value = NewObject<USupertalkMapPropertyValue>(Outer);
+		Value->Owner = Owner;
+		Value->TargetProperty = MapProp;
+		OutResult = Value;
+		return true;
+	}
+	else
+	{
+		FString Str;
+		if (bValueIsContainer)
+		{
+			Property->ExportText_InContainer(0, Str, ValuePtr, ValuePtr, nullptr, PPF_None);
+		}
+		else
+		{
+			Property->ExportText_Direct(Str, ValuePtr, ValuePtr, nullptr, PPF_None);
+		}
+
+		USupertalkTextValue* Value = NewObject<USupertalkTextValue>(Outer);
+		Value->Text = FText::FromString(Str);
+		OutResult = Value;
+		return true;
+	}
+
+	return false;
 }
 
 const USupertalkValue* USupertalkValue::ResolveValue(const USupertalkPlayer* Player) const
@@ -229,6 +288,14 @@ const USupertalkValue* USupertalkObjectValue::GetMember(FName MemberName) const
 				return TextValue;
 			}
 		}
+		else if (FProperty* Prop = Object->GetClass()->FindPropertyByName(MemberName))
+		{
+			USupertalkValue* Value;
+			if (PropertyToValue(Cast<USupertalkPlayer>(GetOuter()), Object, Object, Prop, true, Value))
+			{
+				return Value;
+			}
+		}
 	}
 
 	return nullptr;
@@ -247,6 +314,84 @@ bool USupertalkObjectValue::IsValueEqualTo(const USupertalkValue* Other) const
 	}
 
 	return true;
+}
+
+FText USupertalkMapPropertyValue::ToDisplayText() const
+{
+	return FText::FromString(ToInternalString());
+}
+
+FString USupertalkMapPropertyValue::ToInternalString() const
+{
+	// Is there a string representation for maps?
+	return IsValid(Owner) ?
+		FString::Printf(TEXT("%s.%s"), *Owner->GetName(), TargetProperty ? *TargetProperty->GetName() : TEXT("None"))
+	:   TEXT("None");
+}
+
+const USupertalkValue* USupertalkMapPropertyValue::GetMember(FName MemberName) const
+{
+	if (!IsValid(Owner) || !TargetProperty)
+	{
+		return nullptr;
+	}
+
+	FScriptMapHelper Helper(TargetProperty, TargetProperty->ContainerPtrToValuePtr<uint8>(Owner));
+	if (FNameProperty* NameProp = CastField<FNameProperty>(TargetProperty->KeyProp))
+	{
+		if (uint8* ValuePtr = Helper.FindValueFromHash(&MemberName))
+		{
+			USupertalkValue* Result = nullptr;
+			if (PropertyToValue(Cast<USupertalkPlayer>(GetOuter()), ValuePtr, Owner, TargetProperty->ValueProp, false, Result))
+			{
+				return Result;
+			}
+		}
+
+		return nullptr;
+	}
+	else if (FStrProperty* StrProp = CastField<FStrProperty>(TargetProperty->KeyProp))
+	{
+		FString Key = MemberName.ToString();
+		if (uint8* ValuePtr = Helper.FindValueFromHash(&Key))
+		{
+			USupertalkValue* Result = nullptr;
+			if (PropertyToValue(Cast<USupertalkPlayer>(GetOuter()), ValuePtr, Owner, TargetProperty->ValueProp, false, Result))
+			{
+				return Result;
+			}
+		}
+	}
+	else if (FTextProperty* TextProp = CastField<FTextProperty>(TargetProperty->KeyProp))
+	{
+		FText Key = FText::FromString(MemberName.ToString());
+		if (uint8* ValuePtr = Helper.FindValueFromHash(&Key))
+		{
+			USupertalkValue* Result = nullptr;
+			if (PropertyToValue(Cast<USupertalkPlayer>(GetOuter()), ValuePtr, Owner, TargetProperty->ValueProp, false, Result))
+			{
+				return Result;
+			}
+		}
+	}
+
+	UE_LOG(LogSupertalk, Warning, TEXT("Unable to access member '%s' of '%s.%s': key type of map is not a name, string, or text."), *MemberName.ToString(), *Owner->GetName(), *TargetProperty->GetName());
+	return nullptr;
+}
+
+bool USupertalkMapPropertyValue::IsValueEqualTo(const USupertalkValue* Other) const
+{
+	if (!IsValid(Other))
+	{
+		return false;
+	}
+
+	if (const USupertalkMapPropertyValue* OtherObj = Cast<USupertalkMapPropertyValue>(Other))
+	{
+		return Owner == OtherObj->Owner && TargetProperty == OtherObj->TargetProperty;
+	}
+
+	return false;
 }
 
 #undef LOCTEXT_NAMESPACE

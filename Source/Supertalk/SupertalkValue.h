@@ -30,6 +30,8 @@ public:
 
 	virtual bool IsValueEqualTo(const USupertalkValue* Other) const { return this == Other; }
 
+	static bool PropertyToValue(USupertalkPlayer* Player, void* ValuePtr, UObject* Owner, FProperty* Property, bool bValueIsContainer, USupertalkValue*& OutResult);
+
 protected:
 	virtual const USupertalkValue* ResolveValue(const USupertalkPlayer* Player) const;
 };
@@ -131,6 +133,24 @@ class SUPERTALK_API USupertalkObjectValue : public USupertalkValue
 public:
 	UPROPERTY(VisibleAnywhere)
 	TObjectPtr<UObject> Object;
+
+	virtual FText ToDisplayText() const override;
+	virtual FString ToInternalString() const override;
+	virtual const USupertalkValue* GetMember(FName MemberName) const override;
+
+	virtual bool IsValueEqualTo(const USupertalkValue* Other) const override;
+};
+
+UCLASS()
+class SUPERTALK_API USupertalkMapPropertyValue : public USupertalkValue
+{
+	GENERATED_BODY()
+
+public:
+	UPROPERTY(VisibleAnywhere)
+	TObjectPtr<UObject> Owner;
+
+	FMapProperty* TargetProperty;
 
 	virtual FText ToDisplayText() const override;
 	virtual FString ToInternalString() const override;

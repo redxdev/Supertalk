@@ -157,30 +157,9 @@ const USupertalkValue* USupertalkPlayer::GetVariable(FName Name) const
 				continue;
 			}
 
-			if (FObjectPropertyBase* ObjProp = CastField<FObjectPropertyBase>(Property))
+			USupertalkValue* Value = nullptr;
+			if (USupertalkValue::PropertyToValue(const_cast<USupertalkPlayer*>(this), Provider.Object, Provider.Object, Property, true, Value))
 			{
-				USupertalkObjectValue* Value = NewObject<USupertalkObjectValue>(const_cast<USupertalkPlayer*>(this));
-				Value->Object = ObjProp->GetObjectPropertyValue_InContainer(Provider.Object);
-				return Value;
-			}
-			else if (FBoolProperty* BoolProp = CastField<FBoolProperty>(Property))
-			{
-				USupertalkBooleanValue* Value = NewObject<USupertalkBooleanValue>(const_cast<USupertalkPlayer*>(this));
-				Value->bValue = BoolProp->GetPropertyValue_InContainer(Provider.Object);
-				return Value;
-			}
-			else if (FTextProperty* TextProp = CastField<FTextProperty>(Property))
-			{
-				USupertalkTextValue* Value = NewObject<USupertalkTextValue>(const_cast<USupertalkPlayer*>(this));
-				Value->Text = TextProp->GetPropertyValue_InContainer(Provider.Object);
-				return Value;
-			}
-			else
-			{
-				FString Str;
-				Property->ExportText_InContainer(0, Str, Provider.Object, Provider.Object, nullptr, PPF_None);
-				USupertalkTextValue* Value = NewObject<USupertalkTextValue>(const_cast<USupertalkPlayer*>(this));
-				Value->Text = FText::FromString(Str);
 				return Value;
 			}
 		}

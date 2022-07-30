@@ -1,9 +1,19 @@
 This file contains information about major changes and features.
 
+# 0.5
+
+* Property-based variable providers
+  * Supports passing any UObject to the Supertalk player and accessing properties on it from scripts.
+* `USupertalkObjectValue` now lets you access exposed properties.
+  * Initial `TMap` support (only for maps with `FString`/`FName`/`FText` keys)
+* Added an editor-only "notes" field to `FSupertalkTableRow`
+
 # 0.4
 
 * Function calls can now have variables passed to them as arguments.
   * This is somewhat hacky at the moment, still requiring arguments to be parsed out from a string. This functionality will eventually be rewritten.
+* Function-based variable providers
+  * When a variable can't be found by the supertalk player, it runs these functions to allow them to provide it instead.
 
 # 0.3
 
