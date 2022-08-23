@@ -308,10 +308,10 @@ struct FSupertalkVariableProviderObject
 	GENERATED_BODY()
 
 	UPROPERTY()
-	TObjectPtr<UObject> Object;
+	TObjectPtr<UObject> Object = nullptr;
 
 	UPROPERTY()
-	TObjectPtr<UClass> ClassFilter;
+	TObjectPtr<UClass> ClassFilter = nullptr;
 };
 
 UCLASS()
