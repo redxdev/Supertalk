@@ -4,6 +4,7 @@
 #include "IMessageLogListing.h"
 #include "MessageLogModule.h"
 #include "SupertalkParser.h"
+#include "SupertalkScriptEditorToolkit.h"
 #include "EditorFramework/AssetImportData.h"
 #include "Supertalk/SupertalkPlayer.h"
 #include "Supertalk/Supertalk.h"
@@ -53,6 +54,7 @@ UObject* USupertalkScriptAssetFactory::FactoryCreateText(UClass* InClass, UObjec
 		return nullptr;
 	}
 
+	Script->SourceData = FileContent;
 	Script->AssetImportData->Update(GetCurrentFilename());
 
 	// For some reason the min severity needs to be one level below what we actually want.
@@ -167,6 +169,23 @@ void FAssetTypeActions_SupertalkScript::GetResolvedSourceFilePaths(const TArray<
 		if (Script->AssetImportData)
 		{
 			Script->AssetImportData->ExtractFilenames(OutSourceFilePaths);
+		}
+	}
+}
+
+void FAssetTypeActions_SupertalkScript::OpenAssetEditor(const TArray<UObject*>& InObjects, TSharedPtr<IToolkitHost> EditWithinLevelEditor)
+{
+	EToolkitMode::Type Mode = EditWithinLevelEditor.IsValid()
+		? EToolkitMode::WorldCentric
+		: EToolkitMode::Standalone;
+
+	for (UObject* Obj : InObjects)
+	{
+		USupertalkScript* ScriptAsset = Cast<USupertalkScript>(Obj);
+		if (ScriptAsset)
+		{
+			TSharedRef<FSupertalkScriptEditorToolkit> EditorToolkit = MakeShareable(new FSupertalkScriptEditorToolkit());
+			EditorToolkit->Initialize(ScriptAsset, Mode, EditWithinLevelEditor);
 		}
 	}
 }

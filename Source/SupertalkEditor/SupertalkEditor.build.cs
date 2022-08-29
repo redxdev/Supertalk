@@ -13,7 +13,9 @@ public class SupertalkEditor : ModuleRules
 			{
 				"Core",
 				"CoreUObject",
-				"Supertalk",
+				"SlateCore",
+				"Slate",
+				"Supertalk"
 			});
 
 		PrivateDependencyModuleNames.AddRange(
@@ -22,7 +24,8 @@ public class SupertalkEditor : ModuleRules
 				"UnrealEd",
 				"AssetTools",
 				"Engine",
-				"MessageLog"
+				"MessageLog",
+				"EditorStyle"
 			});
 	}
 }

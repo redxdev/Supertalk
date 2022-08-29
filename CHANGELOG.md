@@ -1,5 +1,11 @@
 This file contains information about major changes and features.
 
+# Upcoming (0.6)
+
+* Supertalk source data is now stored inside assets (editor-only)
+* There is now a read-only view of supertalk source assets that shows the original imported file content.
+  * This may be expanded to a full editor in a later version.
+
 # 0.5
 
 * Property-based variable providers

@@ -74,6 +74,9 @@ public:
 	TMap<FName, FSupertalkSection> Sections;
 
 #if WITH_EDITORONLY_DATA
+	UPROPERTY(VisibleAnywhere, Category = Script)
+	FString SourceData;
+
 	UPROPERTY(VisibleAnywhere, Instanced, Category=ImportSettings)
 	TObjectPtr<class UAssetImportData> AssetImportData;
 
