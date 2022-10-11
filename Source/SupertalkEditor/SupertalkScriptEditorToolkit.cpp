@@ -86,7 +86,7 @@ void FSupertalkScriptEditorToolkit::RegisterTabSpawners(const TSharedRef<FTabMan
 	InTabManager->RegisterTabSpawner(SupertalkScriptEditorTabId, FOnSpawnTab::CreateSP(this, &FSupertalkScriptEditorToolkit::HandleTabManagerSpawnTab, SupertalkScriptEditorTabId))
 		.SetDisplayName(LOCTEXT("SupertalkScriptEditorTabName", "Supertalk Script Editor"))
 		.SetGroup(WorkspaceMenuCategoryRef)
-		.SetIcon(FSlateIcon(FEditorStyle::GetStyleSetName(), "LevelEditor.Tabs.Viewports"));
+		.SetIcon(FSlateIcon(FAppStyle::GetAppStyleSetName(), "LevelEditor.Tabs.Viewports"));
 }
 
 void FSupertalkScriptEditorToolkit::UnregisterTabSpawners(const TSharedRef<FTabManager>& InTabManager)

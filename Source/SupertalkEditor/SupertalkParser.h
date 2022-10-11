@@ -46,6 +46,7 @@ enum class ESupertalkTokenType : uint8
 	AttrStart = ParallelStart,
 	AttrEnd = ParallelEnd
 };
+DECLARE_ENUM_TO_STRING(ESupertalkTokenType);
 
 /**
  * A parser for Supertalk Script (*.sts) files

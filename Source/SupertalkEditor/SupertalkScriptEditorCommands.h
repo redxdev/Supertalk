@@ -3,6 +3,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "EditorStyleSet.h"
 
 class FSupertalkScriptEditorCommands : public TCommands<FSupertalkScriptEditorCommands>
 {
@@ -12,7 +13,7 @@ public:
 			TEXT("SupertalkScriptEditor"),
 			NSLOCTEXT("Contexts", "SupertalkScriptEditor", "Supertalk Script Editor"),
 			NAME_None,
-			FEditorStyle::GetStyleSetName())
+			FAppStyle::GetAppStyleSetName())
 	{
 	}
 

@@ -9,8 +9,7 @@ The plugin is made up of two parts: an editor module and a runtime module. The e
 scripts (.sts files) into a form that the engine can use. The runtime module includes a supertalk "player" which handles
 playback for imported scripts.
 
-Supertalk is currently configured for Unreal Engine 5.0, but can easily be made to work with earlier versions by replacing
-its usages of `TObjectPtr`.
+Supertalk is currently configured for Unreal Engine 5.1, but may work with earlier versions with some minor modifications.
 
 **Supertalk is not a ready-to-use solution for dialogue systems!** It requires a good amount of integration work and comes
 with no UI. While it does integrate well with blueprint, initial integration with a game requires knowledge of C++ and no

@@ -10,6 +10,8 @@
 
 #define LOCTEXT_NAMESPACE "SupertalkParser"
 
+DEFINE_ENUM_TO_STRING(ESupertalkTokenType, "/Script/SupertalkEditor")
+
 namespace Symbols
 {
 	static const TCHAR Separator = TEXT(',');
@@ -118,8 +120,7 @@ TSharedRef<FSupertalkParser> FSupertalkParser::Create(FMessageLog* MessageLog)
 
 FText FSupertalkParser::FToken::GetDisplayName() const
 {
-	const UEnum* Enum = FindObjectChecked<UEnum>(ANY_PACKAGE, TEXT("ESupertalkTokenType"), true);
-	return Enum->GetDisplayNameTextByValue(static_cast<int32>(Type));
+	return FText::FromString(EnumToString(Type));
 }
 
 bool FSupertalkParser::FToken::IsIgnorable() const
