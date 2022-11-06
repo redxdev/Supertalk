@@ -1,6 +1,10 @@
 This file contains information about major changes and features.
 
-# Upcoming (0.6)
+# Upcoming (0.7)
+
+* TBD
+
+# 0.6
 
 * Supertalk source data is now stored inside assets (editor-only)
 * Supertalk assets now show the original file content.
