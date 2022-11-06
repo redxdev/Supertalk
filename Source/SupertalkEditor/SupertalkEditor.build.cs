@@ -15,7 +15,8 @@ public class SupertalkEditor : ModuleRules
 				"CoreUObject",
 				"SlateCore",
 				"Slate",
-				"Supertalk"
+				"Supertalk",
+				"DeveloperSettings"
 			});
 
 		PrivateDependencyModuleNames.AddRange(

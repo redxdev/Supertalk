@@ -5,6 +5,7 @@
 #include "CoreMinimal.h"
 #include "AssetTypeActions_Base.h"
 #include "EditorReimportHandler.h"
+#include "Exporters/Exporter.h"
 #include "SupertalkScriptAssetFactory.generated.h"
 
 UCLASS(HideCategories=(Object))
@@ -18,6 +19,7 @@ public:
 	virtual FText GetDisplayName() const override;
 	virtual bool FactoryCanImport(const FString& Filename) override;
 
+	virtual UObject* FactoryCreateNew(UClass* InClass, UObject* InParent, FName InName, EObjectFlags Flags, UObject* Context, FFeedbackContext* Warn, FName CallingContext) override;
 	virtual UObject* FactoryCreateText(UClass* InClass, UObject* InParent, FName InName, EObjectFlags Flags, UObject* Context, const TCHAR* Type, const TCHAR*& Buffer, const TCHAR* BufferEnd, FFeedbackContext* Warn) override;
 
 	virtual bool CanReimport(UObject* Obj, TArray<FString>& OutFilenames) override;
@@ -35,4 +37,15 @@ public:
 	virtual bool IsImportedAsset() const override;
 	virtual void GetResolvedSourceFilePaths(const TArray<UObject*>& TypeAssets, TArray<FString>& OutSourceFilePaths) const override;
 	virtual void OpenAssetEditor(const TArray<UObject*>& InObjects, TSharedPtr<IToolkitHost> EditWithinLevelEditor) override;
+};
+
+UCLASS()
+class USupertalkScriptExporter : public UExporter
+{
+	GENERATED_BODY()
+
+public:
+	USupertalkScriptExporter();
+
+	virtual bool ExportText(const FExportObjectInnerContext* Context, UObject* Object, const TCHAR* Type, FOutputDevice& Ar, FFeedbackContext* Warn, uint32 PortFlags) override;
 };

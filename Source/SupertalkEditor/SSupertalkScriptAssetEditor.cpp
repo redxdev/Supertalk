@@ -2,7 +2,15 @@
 
 
 #include "SSupertalkScriptAssetEditor.h"
+#include "SupertalkEditorStyle.h"
+#include "SupertalkParser.h"
+#include "SupertalkRichTextSyntaxHighlighterTextLayoutMarshaller.h"
 #include "Supertalk/SupertalkPlayer.h"
+
+SSupertalkScriptAssetEditor::SSupertalkScriptAssetEditor()
+	: MessageLog(TEXT("Supertalk Editor"))
+{
+}
 
 SSupertalkScriptAssetEditor::~SSupertalkScriptAssetEditor()
 {
@@ -14,6 +22,11 @@ void SSupertalkScriptAssetEditor::Construct(const FArguments& InArgs, class USup
 	check(InScriptAsset);
 	ScriptAsset = InScriptAsset;
 
+	TSharedRef<FSupertalkParser> Parser = FSupertalkParser::Create(&MessageLog);
+	TSharedRef<FSupertalkRichTextSyntaxHighlighterTextLayoutMarshaller> RichTextMarshaller = FSupertalkRichTextSyntaxHighlighterTextLayoutMarshaller::Create(
+		Parser,
+		FSupertalkRichTextSyntaxHighlighterTextLayoutMarshaller::FSyntaxTextStyle());
+
 	ChildSlot
 	[
 		SNew(SVerticalBox)
@@ -21,8 +34,13 @@ void SSupertalkScriptAssetEditor::Construct(const FArguments& InArgs, class USup
 			.FillHeight(1.0f)
 			[
 				SAssignNew(TextBox, SMultiLineEditableTextBox)
-					.IsReadOnly(true)
+					.IsReadOnly(InArgs._IsReadOnly)
 					.Text(FText::FromString(ScriptAsset->SourceData))
+					.Font(FSupertalkEditorStyle::Get().GetWidgetStyle<FTextBlockStyle>("TextEditor.NormalText").Font)
+					.Style(FSupertalkEditorStyle::Get(), "TextEditor.EditableTextBox")
+					.Marshaller(RichTextMarshaller)
+					.AutoWrapText(false)
+					.OnTextChanged(this, &SSupertalkScriptAssetEditor::OnTextChanged)
 			]
 	];
 
@@ -34,5 +52,14 @@ void SSupertalkScriptAssetEditor::HandleScriptAssetPropertyChanged(UObject* Obje
 	if (Object == ScriptAsset)
 	{
 		TextBox->SetText(FText::FromString(ScriptAsset->SourceData));
+	}
+}
+
+void SSupertalkScriptAssetEditor::OnTextChanged(const FText& NewText)
+{
+	if (IsValid(ScriptAsset))
+	{
+		ScriptAsset->SourceData = NewText.ToString();
+		ScriptAsset->MarkPackageDirty();
 	}
 }

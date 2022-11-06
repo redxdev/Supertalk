@@ -60,13 +60,38 @@ struct SUPERTALK_API FSupertalkSection
 	TArray<FSupertalkAction> Actions;
 };
 
+struct FSupertalkScriptCustomVersion
+{
+	enum Type
+	{
+		// Before versioning was implemented
+		BeforeCustomVersionWasAdded,
+
+		// Added PreSave compilation support
+		PreSaveCompilation,
+
+		VersionPlusOne,
+		LatestVersion = VersionPlusOne - 1
+	};
+
+	const static FGuid GUID;
+
+private:
+	FSupertalkScriptCustomVersion() {}
+};
+
+#if WITH_EDITOR
+DECLARE_DELEGATE_OneParam(FOnSupertalkScriptPreSave, class USupertalkScript*);
+#endif
+
 UCLASS(BlueprintType, HideCategories=(Object))
 class SUPERTALK_API USupertalkScript : public UObject
 {
 	GENERATED_BODY()
 
 public:
-	
+	USupertalkScript();
+
 	UPROPERTY(VisibleAnywhere, Category = Script)
 	FName DefaultSection;
 	
@@ -77,17 +102,27 @@ public:
 	UPROPERTY(VisibleAnywhere, Category = Script)
 	FString SourceData;
 
+	UPROPERTY()
+	uint8 bCanCompileFromSource : 1;
+
 	UPROPERTY(VisibleAnywhere, Instanced, Category=ImportSettings)
 	TObjectPtr<class UAssetImportData> AssetImportData;
-
-	virtual void PostInitProperties() override;
-	virtual void GetAssetRegistryTags(TArray<FAssetRegistryTag>& OutTags) const override;
-	virtual void Serialize(FArchive& Ar) override;
 #endif
 
 #if WITH_EDITOR
+	// Used for the compiler to hook into saving and packaging operations.
+	static FOnSupertalkScriptPreSave OnScriptPreSave;
+
+	virtual void PreSave(FObjectPreSaveContext SaveContext) override;
+	virtual void PostInitProperties() override;
+	virtual void GetAssetRegistryTags(TArray<FAssetRegistryTag>& OutTags) const override;
+
 	UFUNCTION(CallInEditor, Category = Commands)
 	void OpenSourceFileInExternalProgram();
+#endif
+
+#if WITH_EDITORONLY_DATA
+	virtual void Serialize(FArchive& Ar) override;
 #endif
 };
 

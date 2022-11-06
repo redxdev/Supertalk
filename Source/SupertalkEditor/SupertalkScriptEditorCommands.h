@@ -21,4 +21,5 @@ public:
 
 public:
 	TSharedPtr<FUICommandInfo> OpenInExternalEditor;
+	TSharedPtr<FUICommandInfo> CompileScript;
 };

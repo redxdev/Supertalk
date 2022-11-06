@@ -3,22 +3,23 @@
 #include "SupertalkScriptAssetFactory.h"
 #include "IMessageLogListing.h"
 #include "MessageLogModule.h"
+#include "SupertalkEditorSettings.h"
 #include "SupertalkParser.h"
 #include "SupertalkScriptEditorToolkit.h"
 #include "EditorFramework/AssetImportData.h"
 #include "Supertalk/SupertalkPlayer.h"
 #include "Supertalk/Supertalk.h"
-#include "Logging/MessageLog.h"
 
 #define LOCTEXT_NAMESPACE "SupertalkScriptAssetFactory"
 
 USupertalkScriptAssetFactory::USupertalkScriptAssetFactory()
 {
 	SupportedClass = USupertalkScript::StaticClass();
-	bCreateNew = false;
-	bEditAfterNew = false;
+	bEditAfterNew = true;
 	bEditorImport = true;
 	bText = true;
+
+	bCreateNew = GetDefault<USupertalkEditorSettings>()->bEnableScriptEditor;
 
 	Formats.Add(TEXT("sts;Supertalk Script"));
 }
@@ -35,8 +36,13 @@ bool USupertalkScriptAssetFactory::FactoryCanImport(const FString& Filename)
 	return Extension == TEXT("sts");
 }
 
+UObject* USupertalkScriptAssetFactory::FactoryCreateNew(UClass* InClass, UObject* InParent, FName InName, EObjectFlags Flags, UObject* Context, FFeedbackContext* Warn, FName CallingContext)
+{
+	return NewObject<USupertalkScript>(InParent, SupportedClass, InName, Flags | RF_Transactional);
+}
+
 UObject* USupertalkScriptAssetFactory::FactoryCreateText(UClass* InClass, UObject* InParent, FName InName, EObjectFlags Flags, UObject* Context, const TCHAR* Type, const TCHAR*& Buffer,
-	const TCHAR* BufferEnd, FFeedbackContext* Warn)
+                                                         const TCHAR* BufferEnd, FFeedbackContext* Warn)
 {
 	GEditor->GetEditorSubsystem<UImportSubsystem>()->BroadcastAssetPreImport(this, InClass, InParent, InName, Type);
 
@@ -44,21 +50,14 @@ UObject* USupertalkScriptAssetFactory::FactoryCreateText(UClass* InClass, UObjec
 
 	USupertalkScript* Script = NewObject<USupertalkScript>(InParent, InName, Flags | RF_Transactional);
 
-	FModuleManager::GetModuleChecked<FMessageLogModule>("MessageLog").GetLogListing(SupertalkMessageLogName)->ClearMessages();
-	FMessageLog MessageLog(SupertalkMessageLogName);
-	
-	TSharedRef<FSupertalkParser> Parser = FSupertalkParser::Create(&MessageLog);
-
-	if (!Parser->Parse(GetCurrentFilename(), FileContent, Script))
+	if (!FSupertalkParser::ParseIntoScript(GetCurrentFilename(), FileContent, Script, !IsRunningCommandlet()))
 	{
 		return nullptr;
 	}
 
 	Script->SourceData = FileContent;
+	Script->bCanCompileFromSource = true;
 	Script->AssetImportData->Update(GetCurrentFilename());
-
-	// For some reason the min severity needs to be one level below what we actually want.
-	MessageLog.Notify(LOCTEXT("SupertalkCompilerErrorsReported", "Errors were reported by the Supertalk compiler"));
 
 	GEditor->GetEditorSubsystem<UImportSubsystem>()->BroadcastAssetPostImport(this, Script);
 
@@ -105,7 +104,7 @@ EReimportResult::Type USupertalkScriptAssetFactory::Reimport(UObject* Obj)
 	}
 
 	bool OutCancelled = false;
-	if (ImportObject(Script->GetClass(), Script->GetOuter(), Script->GetFName(), Script->GetFlags(), Filename, nullptr, OutCancelled) != nullptr)
+	if (FactoryCreateFile(Script->GetClass(), Script->GetOuter(), Script->GetFName(), Script->GetFlags(), Filename, nullptr, GWarn, OutCancelled) != nullptr)
 	{
 		UE_LOG(LogSupertalk, Log, TEXT("Imported successfully"));
 
@@ -153,7 +152,7 @@ FColor FAssetTypeActions_SupertalkScript::GetTypeColor() const
 
 uint32 FAssetTypeActions_SupertalkScript::GetCategories()
 {
-	return EAssetTypeCategories::Misc | EAssetTypeCategories::Blueprint;
+	return EAssetTypeCategories::Misc;
 }
 
 bool FAssetTypeActions_SupertalkScript::IsImportedAsset() const
@@ -188,6 +187,22 @@ void FAssetTypeActions_SupertalkScript::OpenAssetEditor(const TArray<UObject*>& 
 			EditorToolkit->Initialize(ScriptAsset, Mode, EditWithinLevelEditor);
 		}
 	}
+}
+
+USupertalkScriptExporter::USupertalkScriptExporter()
+{
+	SupportedClass = USupertalkScript::StaticClass();
+	bText = true;
+	FormatExtension.Add(TEXT("sts"));
+	FormatDescription.Add(TEXT("Supertalk Script"));
+	PreferredFormatIndex = 0;
+}
+
+bool USupertalkScriptExporter::ExportText(const FExportObjectInnerContext* Context, UObject* Object, const TCHAR* Type, FOutputDevice& Ar, FFeedbackContext* Warn, uint32 PortFlags)
+{
+	USupertalkScript* Script = CastChecked<USupertalkScript>(Object);
+	Ar.Log(Script->SourceData);
+	return true;
 }
 
 #undef LOCTEXT_NAMESPACE

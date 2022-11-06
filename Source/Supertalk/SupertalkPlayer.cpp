@@ -7,10 +7,31 @@
 #include "SupertalkValue.h"
 #include "EditorFramework/AssetImportData.h"
 #include "Logging/MessageLog.h"
+#include "UObject/ObjectSaveContext.h"
 
 #define LOCTEXT_NAMESPACE "Supertalk"
 
-#if WITH_EDITORONLY_DATA
+const FGuid FSupertalkScriptCustomVersion::GUID(0xB47DCFA0, 0x0EE34B12, 0x11FFE8DC, 0xCF812143);
+static FDevVersionRegistration GRegisterSupertalkScriptCustomVersion(FSupertalkScriptCustomVersion::GUID, FSupertalkScriptCustomVersion::LatestVersion, TEXT("SupertalkScript"));
+
+USupertalkScript::USupertalkScript()
+{
+#if WITH_EDITOR
+	bCanCompileFromSource = true;
+#endif
+}
+
+#if WITH_EDITOR
+
+FOnSupertalkScriptPreSave USupertalkScript::OnScriptPreSave;
+
+void USupertalkScript::PreSave(FObjectPreSaveContext SaveContext)
+{
+	UObject::PreSave(SaveContext);
+
+	OnScriptPreSave.ExecuteIfBound(this);
+}
+
 void USupertalkScript::PostInitProperties()
 {
 	if (!HasAnyFlags(RF_ClassDefaultObject))
@@ -31,19 +52,6 @@ void USupertalkScript::GetAssetRegistryTags(TArray<FAssetRegistryTag>& OutTags) 
 	Super::GetAssetRegistryTags(OutTags);
 }
 
-void USupertalkScript::Serialize(FArchive& Ar)
-{
-	Super::Serialize(Ar);
-
-	if (Ar.IsLoading() && Ar.UEVer() < VER_UE4_ASSET_IMPORT_DATA_AS_JSON && !AssetImportData)
-	{
-		// AssetImportData should always be valid
-		AssetImportData = NewObject<UAssetImportData>(this, TEXT("AssetImportData"));
-	}
-}
-#endif
-
-#if WITH_EDITOR
 void USupertalkScript::OpenSourceFileInExternalProgram()
 {
 	if (AssetImportData)
@@ -52,6 +60,40 @@ void USupertalkScript::OpenSourceFileInExternalProgram()
 		if (FPaths::FileExists(Filename))
 		{
 			FPlatformProcess::LaunchFileInDefaultExternalApplication(*Filename);
+		}
+	}
+}
+#endif
+
+#if WITH_EDITORONLY_DATA
+void USupertalkScript::Serialize(FArchive& Ar)
+{
+	Super::Serialize(Ar);
+
+	Ar.UsingCustomVersion(FSupertalkScriptCustomVersion::GUID);
+	if (Ar.IsLoading())
+	{
+		// There are a few cases to handle with regards to whether we enable compilation or not:
+		// Super old (pre-AssetImportData) script -> disable compilation as we don't have any import data
+		// Super old script that has AssetImportData but is missing SourceData -> disable compilation, assume this is a script that was resaved at some point without being reimported
+		// Old script that has AssetImportData and SourceData -> enable compilation, we have SourceData.
+		// New script (post-PreSaveCompilation) -> this check is skipped entirely, compilation will be enabled.
+		//
+		// Invalid AssetImportData but valid SourceData isn't possible until post-PreSaveCompilation so it's not a case we have to handle.
+		//
+		// The reason for disabling compilation when we don't have valid SourceData is that old versions of Supertalk didn't save the raw script text into the asset and only compiled it
+		// at import-time. We don't want to attempt to recompile those old scripts as that would blank out the compiled data despite the scripts otherwise working fine. Instead, we just emit a
+		// warning during packaging because the scripts should probably be reimported at some point.
+		if (Ar.CustomVer(FSupertalkScriptCustomVersion::GUID) < FSupertalkScriptCustomVersion::PreSaveCompilation && (!AssetImportData || SourceData.IsEmpty()))
+		{
+			SourceData = TEXT("!error This script was created with an old version of supertalk. To view, edit, or compile its contents please re-import it.");
+			bCanCompileFromSource = false;
+		}
+
+		if (Ar.UEVer() < VER_UE4_ASSET_IMPORT_DATA_AS_JSON && !AssetImportData)
+		{
+			// AssetImportData should always be valid
+			AssetImportData = NewObject<UAssetImportData>(this, TEXT("AssetImportData"));
 		}
 	}
 }

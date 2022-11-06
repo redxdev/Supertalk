@@ -21,11 +21,14 @@ public:
 	virtual FString GetWorldCentricTabPrefix() const override;
 
 	virtual void AddReferencedObjects(FReferenceCollector& Collector) override;
+	virtual FString GetReferencerName() const override;
 
 private:
 	void BindCommands();
 
 	TSharedRef<SDockTab> HandleTabManagerSpawnTab(const FSpawnTabArgs& Args, FName TabIdentifier);
+
+	void CompileScript();
 
 	USupertalkScript* ScriptAsset = nullptr;
 };

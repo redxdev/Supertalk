@@ -3,8 +3,17 @@ This file contains information about major changes and features.
 # Upcoming (0.6)
 
 * Supertalk source data is now stored inside assets (editor-only)
-* There is now a read-only view of supertalk source assets that shows the original imported file content.
-  * This may be expanded to a full editor in a later version.
+* Supertalk assets now show the original file content.
+  * Assets from previous versions must be reimported for this to work (this only affects the ability to view source data, old script assets will still work fine)
+* An experimental editor for Supertalk assets has been implemented.
+  * This must be enabled in Project Settings > Editor > Supertalk Editor. Restart the editor after changing this setting.
+  * This also lets you create Supertalk scripts within the editor without having to import from an external file.
+  * The editor is somewhat untested and due to how it works it is possible to lose script data. Be careful when enabling this option!
+  * Old script assets must be reimported before they can be edited from within the editor.
+* Script assets can now be exported to text files if they were imported after this version.
+* Script assets are now compiled upon saving (incl. when packaging).
+  * Old assets that don't have source data available are an exception to this.
+  * This means that referencing a script that fails to compile will fail packaging.
 
 # 0.5
 

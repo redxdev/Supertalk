@@ -246,6 +246,13 @@ A basic syntax highlighting extension for Visual Studio Code can be found in the
 
 ![image](https://user-images.githubusercontent.com/472625/121821540-88d35a00-cc4e-11eb-9910-64d69edc6012.png)
 
+## Experimental Editor
+
+An experimental editor can be enabled by going to Project Settings > Editor > Supertalk Editor. Restart the engine after changing this option.
+This also lets you create Supertalk scripts within the editor without having to import from an external file.
+
+This editor is *super* experimental and you may lose data when using it!
+
 ## Integration Guide
 
 This is an overview of the work necessary to integrate Supertalk into a project.

@@ -4,22 +4,26 @@
 
 #include "AssetToolsModule.h"
 #include "IAssetTools.h"
-#include "Supertalk/Supertalk.h"
+#include "SupertalkEditorStyle.h"
 #include "SupertalkScriptAssetFactory.h"
-
+#include "SupertalkScriptCompiler.h"
 
 IMPLEMENT_MODULE(FSupertalkEditorModule, SupertalkEditor);
 
 void FSupertalkEditorModule::StartupModule()
 {
-	UE_LOG(LogSupertalk, Log, TEXT("Supertalk editor startup"));
-	
+	FSupertalkEditorStyle::Initialize();
+
 	IAssetTools& AssetTools = FModuleManager::GetModuleChecked<FAssetToolsModule>("AssetTools").Get();
 	AssetTools.RegisterAssetTypeActions(MakeShareable(new FAssetTypeActions_SupertalkScript()));
+
+	FSupertalkScriptCompiler::Initialize();
 }
 
 void FSupertalkEditorModule::ShutdownModule()
 {
-	UE_LOG(LogSupertalk, Log, TEXT("Supertalk editor shutdown"));
+	FSupertalkScriptCompiler::Shutdown();
+
+	FSupertalkEditorStyle::Shutdown();
 }
 

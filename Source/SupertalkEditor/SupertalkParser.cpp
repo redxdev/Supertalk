@@ -1,12 +1,14 @@
 ﻿// Copyright (c) MissiveArts LLC
 
 #include "SupertalkParser.h"
-
+#include "IMessageLogListing.h"
+#include "MessageLogModule.h"
 #include "Misc/FeedbackContext.h"
 #include "Supertalk/SupertalkPlayer.h"
 #include "Supertalk/SupertalkValue.h"
 #include "Supertalk/SupertalkLine.h"
 #include "Logging/MessageLog.h"
+#include "Supertalk/Supertalk.h"
 
 #define LOCTEXT_NAMESPACE "SupertalkParser"
 
@@ -91,17 +93,6 @@ bool IsTokenSymbol(TCHAR Char)
     }
 }
 
-bool IsReservedName(FName Input)
-{
-	static TSet<FName> ReservedNames = {
-		NAME_None,
-		NAME_TRUE,
-		NAME_FALSE
-	};
-
-	return ReservedNames.Contains(Input);
-}
-
 static TMap<FName, ESupertalkTokenType> NameToTokenOverrideMap = {
 	{ TEXT("if"), ESupertalkTokenType::If },
 	{ TEXT("then"), ESupertalkTokenType::Then },
@@ -118,6 +109,42 @@ TSharedRef<FSupertalkParser> FSupertalkParser::Create(FMessageLog* MessageLog)
 	return Parser;
 }
 
+bool FSupertalkParser::ParseIntoScript(FString File, FString Input, USupertalkScript* Script, bool bCreateNewLogPage)
+{
+	check(Script);
+
+	if (bCreateNewLogPage)
+	{
+		FModuleManager::GetModuleChecked<FMessageLogModule>("MessageLog")
+			.GetLogListing(SupertalkMessageLogName)->NewPage(
+				FText::Format(
+					LOCTEXT("MessageLogPageName", "Compile of {0} at {1}"),
+					FText::FromString(File),
+					FText::AsDateTime(FDateTime::Now())));
+	}
+
+	FMessageLog MessageLog(SupertalkMessageLogName);
+	TSharedRef<FSupertalkParser> Parser = Create(&MessageLog);
+
+	bool bResult = Parser->Parse(File, Input, Script);
+
+	// For some reason the min severity needs to be one level below what we actually want.
+	MessageLog.Notify(LOCTEXT("SupertalkCompilerErrorsReported", "Errors were reported by the Supertalk compiler"));
+
+	return bResult;
+}
+
+bool FSupertalkParser::IsReservedName(FName Input)
+{
+	static TSet<FName> ReservedNames = {
+		NAME_None,
+		NAME_TRUE,
+		NAME_FALSE
+	};
+
+	return ReservedNames.Contains(Input);
+}
+
 FText FSupertalkParser::FToken::GetDisplayName() const
 {
 	return FText::FromString(EnumToString(Type));
@@ -130,6 +157,8 @@ bool FSupertalkParser::FToken::IsIgnorable() const
 	default:
 		return false;
 
+	case ESupertalkTokenType::Eof:
+	case ESupertalkTokenType::Ignore:
 	case ESupertalkTokenType::Comment:
 		return true;
 	}
@@ -180,6 +209,49 @@ FString FSupertalkParser::FLxStream::ReadToEndOfLine()
 	++CurrentLine;
 
 	return Result;
+}
+
+FString FSupertalkParser::FLxStream::ReadToEndOfFile()
+{
+	FString Str = ReadToEndOfLine();
+	while (Lines.IsValidIndex(CurrentLine))
+	{
+		Str += TEXT("\n") + ReadToEndOfLine();
+	}
+
+	return Str;
+}
+
+FString FSupertalkParser::FLxStream::ReadBetweenContexts(const FTokenContext& Left, const FTokenContext& Right)
+{
+	FString Str;
+	for (int32 LineIdx = Left.Line; LineIdx <= Right.Line; ++LineIdx)
+	{
+		if (!Lines.IsValidIndex(LineIdx - 1))
+		{
+			break;
+		}
+
+		FString& Line = Lines[LineIdx - 1];
+		int32 ColStart = LineIdx == Left.Line ? Left.Col : 1;
+		int32 ColEnd = LineIdx == Right.Line ? Right.Col : INT32_MAX;
+		for (int32 ColIdx = ColStart; ColIdx < ColEnd; ++ColIdx)
+		{
+			if (!Line.IsValidIndex(ColIdx - 1))
+			{
+				break;
+			}
+
+			Str += Line[ColIdx - 1];
+		}
+
+		if (LineIdx != Right.Line)
+		{
+			Str += "\n";
+		}
+	}
+
+	return Str;
 }
 
 void FSupertalkParser::FLxStream::GoBack(int32 Count)
@@ -280,6 +352,11 @@ bool FSupertalkParser::Parse(const FString& File, const FString& Input, USuperta
 	return true;
 }
 
+bool FSupertalkParser::TokenizeSyntax(const FString& File, const FString& Input, TArray<FToken>& OutTokens)
+{
+	return RunLexer(File, Input, OutTokens, true);
+}
+
 /*
 void FSupertalkParser::RunTest()
 {
@@ -320,7 +397,7 @@ void FSupertalkParser::Initialize()
 {
 }
 
-bool FSupertalkParser::RunLexer(const FString& File, const FString& Input, TArray<FToken>& OutTokens)
+bool FSupertalkParser::RunLexer(const FString& File, const FString& Input, TArray<FToken>& OutTokens, bool bIgnoreErrors)
 {
 	FLxContext Ctx;
 	Ctx.File = File;
@@ -328,24 +405,55 @@ bool FSupertalkParser::RunLexer(const FString& File, const FString& Input, TArra
 	Ctx.Stream.CurrentLine = 0;
 
 	Input.ParseIntoArrayLines(Ctx.Stream.Lines, false);
-	for (int32 Idx = 0; Idx < Ctx.Stream.Lines.Num(); ++Idx)
-	{
-		Ctx.Stream.Lines[Idx].TrimEndInline();
-	}
-	
+
 	while (!Ctx.Stream.IsEOF())
 	{
+		FTokenContext CurrentContext = Ctx.CreateContext();
+
 		FToken Token;
-		if (!LxToken(Ctx, Token))
+		bool bLexResult = LxToken(Ctx, Token);
+		FTokenContext NewContext = Ctx.CreateContext();
+		Token.Source = Ctx.Stream.ReadBetweenContexts(CurrentContext, NewContext);
+		if (!bLexResult)
 		{
+			if (bIgnoreErrors)
+			{
+				if (CurrentContext == NewContext)
+				{
+					// Continuing would result in an infinite loop, we can't continue ignoring errors.
+					Token.Type = ESupertalkTokenType::Unknown;
+					Token.Source += Ctx.Stream.ReadToEndOfFile();
+					OutTokens.Add(Token);
+					return false;
+				}
+
+				OutTokens.Add(Token);
+				continue;
+			}
+
 			FString TokenPosition = FString::Printf(TEXT("%s:%d:%d"), *Token.Context.File, Token.Context.Line, Token.Context.Col);
 			MessageLog->Error(FText::Format(LOCTEXT("LexerUnexpectedContent", "{0} - lexer: unexpected content '{1}'"), FText::FromString(TokenPosition), FText::FromString(Token.Content)));
 			return false;
 		}
 
-		if (Token.Type == ESupertalkTokenType::Eof)
+		if (!OutTokens.IsEmpty() && FToken::IsPotentialLoop(Token, OutTokens.Last()))
 		{
-			continue;
+			if (bIgnoreErrors)
+			{
+				// Continuing would result in an infinite loop, we can't continue ignoring errors.
+				Token = FToken();
+				Token.Context = CurrentContext;
+				Token.Type = ESupertalkTokenType::Unknown;
+				Token.Source += Ctx.Stream.ReadToEndOfFile();
+				OutTokens.Add(Token);
+			}
+			else
+			{
+				FString TokenPosition = FString::Printf(TEXT("%s:%d:%d"), *Token.Context.File, Token.Context.Line, Token.Context.Col);
+				MessageLog->Error(FText::Format(LOCTEXT("LexerTokenLoop", "{0} - lexer: repeated token, potentially caught in infinite loop. Talk to a developer!"), FText::FromString(TokenPosition)));
+			}
+
+			return false;
 		}
 
 		OutTokens.Add(Token);
@@ -362,6 +470,10 @@ bool FSupertalkParser::RunParser(USupertalkScript* Script, const TArray<FToken>&
 	Ctx.Script = Script;
 	Ctx.DefaultNamespace = TEXT("Supertalk.Script.Default");
 	Ctx.Stream.Tokens = InTokens;
+
+	// Reset the state of the script
+	Ctx.Script->Sections.Empty();
+	Ctx.Script->DefaultSection = NAME_None;
 
 	// Remove any ignorable tokens (for example, comments) from the stream.
 	Ctx.Stream.Tokens.RemoveAll([](const FToken& Token) { return Token.IsIgnorable(); });
@@ -570,6 +682,11 @@ bool FSupertalkParser::LxToken(FLxContext& InCtx, FToken& OutToken)
 			OutToken.Type = *Override;
 		}
 
+		return true;
+
+	case ' ':
+	case '\t':
+		OutToken.Type = ESupertalkTokenType::Ignore;
 		return true;
 
 	case Symbols::Separator:
@@ -1093,6 +1210,12 @@ bool FSupertalkParser::PaDirective(FPaContext& InCtx)
 		
 		InCtx.DefaultNamespace = Content;
 		return true;
+	}
+	else if (Directive.Compare(TEXT("error"), ESearchCase::IgnoreCase) == 0)
+	{
+		Content.TrimStartAndEndInline();
+		ParseError(InCtx, Token, FText::Format(LOCTEXT("ErrorDirective", "error directive: {0}"), FText::FromString(Content)));
+		return false;
 	}
 	
 	ParseError(InCtx, Token, FText::Format(LOCTEXT("InvalidDirective", "unknown directive '{0}'"), FText::FromString(Directive)));

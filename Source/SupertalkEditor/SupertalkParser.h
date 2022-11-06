@@ -15,6 +15,7 @@ UENUM()
 enum class ESupertalkTokenType : uint8
 {
 	Unknown,
+	Ignore,
 	Eof,
     Name,
     Separator,
@@ -55,8 +56,11 @@ class FSupertalkParser : public TSharedFromThis<FSupertalkParser>
 {
 public:
 	static TSharedRef<FSupertalkParser> Create(class FMessageLog* MessageLog);
+	static bool ParseIntoScript(FString File, FString Input, class USupertalkScript* Script, bool bCreateNewLogPage = true);
 
-private:
+	static bool IsReservedName(FName Input);
+
+public:
 	enum class ETextParseMode : uint8
 	{
 		SingleLine,
@@ -69,6 +73,11 @@ private:
 		FString File;
 		int32 Line = -1;
 		int32 Col = -1;
+
+		friend bool operator==(const FTokenContext& Lhs, const FTokenContext& Rhs)
+		{
+			return Lhs.File == Rhs.File && Lhs.Line == Rhs.Line && Lhs.Col == Rhs.Col;
+		}
 	};
 
 	struct FToken
@@ -76,6 +85,7 @@ private:
 		FTokenContext Context;
 		ESupertalkTokenType Type = ESupertalkTokenType::Unknown;
 		FString Content;
+		FString Source;
 		FString Namespace;
 		int32 Indentation;
 
@@ -84,6 +94,12 @@ private:
 		bool IsIgnorable() const;
 
 		FString GetGeneratedLocalizationKey() const;
+
+		static bool IsPotentialLoop(const FToken& Lhs, const FToken& Rhs)
+		{
+			// Used to test if the same token is being emitted over and over again.
+			return Lhs.Context == Rhs.Context && Lhs.Type == Rhs.Type && Lhs.Content == Rhs.Content;
+		}
 	};
 
 	struct FLxStream
@@ -105,6 +121,8 @@ private:
 
 		TCHAR ReadChar();
 		FString ReadToEndOfLine();
+		FString ReadToEndOfFile();
+		FString ReadBetweenContexts(const FTokenContext& Left, const FTokenContext& Right);
 
 		void GoBack(int32 Count);
 
@@ -171,6 +189,7 @@ public:
 	~FSupertalkParser();
 
 	bool Parse(const FString& File, const FString& Input, USupertalkScript* Script);
+	bool TokenizeSyntax(const FString& File, const FString& Input, TArray<FToken>& OutTokens);
 
 	//void RunTest();
 
@@ -178,7 +197,9 @@ private:
 	FSupertalkParser();
 	void Initialize();
 
-	bool RunLexer(const FString& File, const FString& Input, TArray<FToken>& OutTokens);
+	// If bIgnoreErrors is true, attempts to ignore any problems with lexing.
+	// If an error can't be ignored, the rest of the input will be appended as a final "unknown" token.
+	bool RunLexer(const FString& File, const FString& Input, TArray<FToken>& OutTokens, bool bIgnoreErrors = false);
 	bool RunParser(USupertalkScript* Script, const TArray<FToken>& InTokens);
 
 	void ConsumeEmptyLines(FLxContext& InCtx);

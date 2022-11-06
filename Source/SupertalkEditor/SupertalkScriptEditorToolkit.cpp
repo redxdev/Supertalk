@@ -4,8 +4,16 @@
 #include "SupertalkScriptEditorToolkit.h"
 #include "Supertalk/SupertalkPlayer.h"
 #include "EditorReimportHandler.h"
+#include "IMessageLogListing.h"
+#include "MessageLogModule.h"
 #include "SSupertalkScriptAssetEditor.h"
+#include "SupertalkEditorSettings.h"
+#include "SupertalkParser.h"
 #include "SupertalkScriptEditorCommands.h"
+#include "EditorFramework/AssetImportData.h"
+#include "Framework/Notifications/NotificationManager.h"
+#include "Supertalk/Supertalk.h"
+#include "Widgets/Notifications/SNotificationList.h"
 
 #define LOCTEXT_NAMESPACE "FSupertalkScriptEditorToolkit"
 
@@ -53,6 +61,8 @@ void FSupertalkScriptEditorToolkit::Initialize(USupertalkScript* InScriptAsset, 
 		{
 			ToolbarBuilder.BeginSection("Command");
 			{
+				ToolbarBuilder.AddToolBarButton(FSupertalkScriptEditorCommands::Get().CompileScript);
+				ToolbarBuilder.AddSeparator();
 				ToolbarBuilder.AddToolBarButton(FSupertalkScriptEditorCommands::Get().OpenInExternalEditor);
 			}
 			ToolbarBuilder.EndSection();
@@ -121,6 +131,11 @@ void FSupertalkScriptEditorToolkit::AddReferencedObjects(FReferenceCollector& Co
 	Collector.AddReferencedObject(ScriptAsset);
 }
 
+FString FSupertalkScriptEditorToolkit::GetReferencerName() const
+{
+	return TEXT("FSupertalkScriptEditorToolkit");
+}
+
 void FSupertalkScriptEditorToolkit::BindCommands()
 {
 	const FSupertalkScriptEditorCommands& Commands = FSupertalkScriptEditorCommands::Get();
@@ -129,7 +144,19 @@ void FSupertalkScriptEditorToolkit::BindCommands()
 	UICommandList->MapAction(
 		Commands.OpenInExternalEditor,
 		FExecuteAction::CreateUObject(ScriptAsset, &USupertalkScript::OpenSourceFileInExternalProgram),
-		FCanExecuteAction());
+		FCanExecuteAction::CreateWeakLambda(ScriptAsset, [Script=ScriptAsset]()
+		{
+			const FString Filename = Script->AssetImportData->GetFirstFilename();
+			return !Filename.IsEmpty() && FPaths::FileExists(*Filename);
+		}));
+
+	UICommandList->MapAction(
+		Commands.CompileScript,
+		FExecuteAction::CreateRaw(this, &FSupertalkScriptEditorToolkit::CompileScript),
+		FCanExecuteAction::CreateWeakLambda(ScriptAsset, [Script=ScriptAsset]()
+		{
+			return GetDefault<USupertalkEditorSettings>()->bEnableScriptEditor && Script->bCanCompileFromSource;
+		}));
 }
 
 TSharedRef<SDockTab> FSupertalkScriptEditorToolkit::HandleTabManagerSpawnTab(const FSpawnTabArgs& Args, FName TabIdentifier)
@@ -137,7 +164,8 @@ TSharedRef<SDockTab> FSupertalkScriptEditorToolkit::HandleTabManagerSpawnTab(con
 	TSharedPtr<SWidget> TabWidget = SNullWidget::NullWidget;
 	if (TabIdentifier == SupertalkScriptEditorTabId)
 	{
-		TabWidget = SNew(SSupertalkScriptAssetEditor, ScriptAsset);
+		TabWidget = SNew(SSupertalkScriptAssetEditor, ScriptAsset)
+			.IsReadOnly(!GetDefault<USupertalkEditorSettings>()->bEnableScriptEditor || !ScriptAsset->bCanCompileFromSource);
 	}
 
 	return SNew(SDockTab)
@@ -146,5 +174,22 @@ TSharedRef<SDockTab> FSupertalkScriptEditorToolkit::HandleTabManagerSpawnTab(con
 			TabWidget.ToSharedRef()
 		];
 }
+
+void FSupertalkScriptEditorToolkit::CompileScript()
+{
+	if (GetDefault<USupertalkEditorSettings>()->bEnableScriptEditor && IsValid(ScriptAsset))
+	{
+		if (FSupertalkParser::ParseIntoScript(ScriptAsset->GetName(), ScriptAsset->SourceData, ScriptAsset))
+		{
+			FNotificationInfo Notification(LOCTEXT("SupertalkCompileSuccess", "Script compiled successfully"));
+			Notification.bFireAndForget = true;
+			Notification.SubText = FText::FromString(ScriptAsset->GetName());
+			FSlateNotificationManager::Get().AddNotification(Notification)->SetCompletionState(SNotificationItem::CS_Success);
+		}
+
+		ScriptAsset->MarkPackageDirty();
+	}
+}
+
 
 #undef LOCTEXT_NAMESPACE
