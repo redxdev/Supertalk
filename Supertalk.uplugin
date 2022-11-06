@@ -1,6 +1,6 @@
 {
 	"FileVersion": 3,
-	"Version": 5,
+	"Version": 6,
 	"VersionName": "0.6.0",
 	"FriendlyName": "Supertalk",
 	"Description": "Supertalk script importer and runtime",
