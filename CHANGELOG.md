@@ -2,7 +2,8 @@ This file contains information about major changes and features.
 
 # Upcoming (0.7)
 
-* TBD
+* Better editor experience
+  * Line numbers and compiler output within the script editor.
 
 # 0.6
 
