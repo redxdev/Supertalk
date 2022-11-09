@@ -45,8 +45,6 @@ Supertalk is still under development. While it works, syntax is subject to chang
   * Should be done as part of the new function call parsing system
 * TODO: Editor improvements
   * General stability improvements for the script editor
-  * Line numbers
-  * Compiler output in its own output panel instead of reusing the message log
 
 ## Scripting Syntax + Features
 
