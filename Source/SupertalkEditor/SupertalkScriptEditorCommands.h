@@ -20,6 +20,6 @@ public:
 	virtual void RegisterCommands() override;
 
 public:
-	TSharedPtr<FUICommandInfo> OpenInExternalEditor;
+	TSharedPtr<FUICommandInfo> OpenSourceFile;
 	TSharedPtr<FUICommandInfo> CompileScript;
 };

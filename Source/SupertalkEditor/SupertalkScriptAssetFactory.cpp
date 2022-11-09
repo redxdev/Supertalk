@@ -50,7 +50,45 @@ UObject* USupertalkScriptAssetFactory::FactoryCreateText(UClass* InClass, UObjec
 
 	USupertalkScript* Script = NewObject<USupertalkScript>(InParent, InName, Flags | RF_Transactional);
 
-	if (!FSupertalkParser::ParseIntoScript(GetCurrentFilename(), FileContent, Script, !IsRunningCommandlet()))
+	FBufferedOutputDevice Output;
+	bool bResult = FSupertalkParser::ParseIntoScript(GetCurrentFilename(), FileContent, Script, IsRunningCommandlet() ? static_cast<FOutputDevice*>(GLog) : &Output);
+
+	if (!IsRunningCommandlet())
+	{
+		FModuleManager::GetModuleChecked<FMessageLogModule>("MessageLog")
+			.GetLogListing(SupertalkMessageLogName)->NewPage(
+				FText::Format(
+					LOCTEXT("MessageLogPageName", "Compile of {0} at {1}"),
+					FText::FromString(GetCurrentFilename()),
+					FText::AsDateTime(FDateTime::Now())));
+
+		FMessageLog MessageLog(SupertalkMessageLogName);
+		TArray<FBufferedLine> Lines;
+		Output.GetContents(Lines);
+		for (const FBufferedLine& Line : Lines)
+		{
+			FText Message = FText::FromString(Line.Data);
+			switch (Line.Verbosity)
+			{
+			default:
+				MessageLog.Info(Message);
+				break;
+
+			case ELogVerbosity::Fatal:
+			case ELogVerbosity::Error:
+				MessageLog.Error(Message);
+				break;
+
+			case ELogVerbosity::Warning:
+				MessageLog.Warning(Message);
+				break;
+			}
+		}
+
+		MessageLog.Notify(LOCTEXT("SupertalkCompilerErrorsReported", "Errors were reported by the Supertalk compiler"));
+	}
+
+	if (!bResult)
 	{
 		return nullptr;
 	}

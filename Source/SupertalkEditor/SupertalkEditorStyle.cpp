@@ -29,8 +29,8 @@ void FSupertalkEditorStyle::Initialize()
 		.SetColorAndOpacity(FLinearColor::White)
 		.SetShadowOffset(FVector2D::ZeroVector)
 		.SetShadowColorAndOpacity(FLinearColor::Black)
-		.SetHighlightColor(FLinearColor(FColor(0xffa1d6ff)))
-		.SetHighlightShape(BOX_BRUSH("Common/TextBlockHighlightShape", FMargin(3.f/8.f)));;
+		.SetHighlightColor(FLinearColor(0.02f, 0.3f, 0.0f))
+		.SetHighlightShape(BOX_BRUSH("Common/TextBlockHighlightShape", FMargin(3.f/8.f)));
 
 	{
 		StyleSet->Set("TextEditor.NormalText", NormalText);
@@ -55,6 +55,8 @@ void FSupertalkEditorStyle::Initialize()
 			.SetBackgroundImageReadOnly( FSlateNoResource() );
 
 		StyleSet->Set("TextEditor.EditableTextBox", EditableTextBoxStyle);
+
+		StyleSet->Set("TextEditor.LineNumberText", FTextBlockStyle(NormalText).SetColorAndOpacity(FLinearColor(FColor(FColor(0xffbbbbbb)))));
 	}
 
 	FSlateStyleRegistry::RegisterSlateStyle(*StyleSet.Get());

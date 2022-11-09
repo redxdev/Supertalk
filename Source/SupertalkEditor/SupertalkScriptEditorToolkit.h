@@ -29,6 +29,9 @@ private:
 	TSharedRef<SDockTab> HandleTabManagerSpawnTab(const FSpawnTabArgs& Args, FName TabIdentifier);
 
 	void CompileScript();
+	void OnScriptCompiled(class USupertalkScript* InScript, bool bResult, const TArray<FBufferedLine>& CompilerOutput);
 
 	USupertalkScript* ScriptAsset = nullptr;
+
+	TSharedPtr<class IMessageLogListing> CompilerLogListing;
 };

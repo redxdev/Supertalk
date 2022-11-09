@@ -55,8 +55,8 @@ DECLARE_ENUM_TO_STRING(ESupertalkTokenType);
 class FSupertalkParser : public TSharedFromThis<FSupertalkParser>
 {
 public:
-	static TSharedRef<FSupertalkParser> Create(class FMessageLog* MessageLog);
-	static bool ParseIntoScript(FString File, FString Input, class USupertalkScript* Script, bool bCreateNewLogPage = true);
+	static TSharedRef<FSupertalkParser> Create(FOutputDevice* Ar);
+	static bool ParseIntoScript(FString File, FString Input, class USupertalkScript* Script, FOutputDevice* Ar);
 
 	static bool IsReservedName(FName Input);
 
@@ -78,6 +78,8 @@ public:
 		{
 			return Lhs.File == Rhs.File && Lhs.Line == Rhs.Line && Lhs.Col == Rhs.Col;
 		}
+
+		FString ToString() const;
 	};
 
 	struct FToken
@@ -89,7 +91,7 @@ public:
 		FString Namespace;
 		int32 Indentation;
 
-		FText GetDisplayName() const;
+		FString GetDisplayName() const;
 
 		bool IsIgnorable() const;
 
@@ -217,10 +219,10 @@ private:
 
 	void ParseTokenError(const FPaContext& InCtx, const FToken& Token, ESupertalkTokenType ExpectedTokenType) const;
 	void ParseTokenError(const FPaContext& InCtx, const FToken& Token, const FString& Expected) const;
-	void ParseError(const FPaContext& InCtx, const FToken& Token, const FText& Message) const;
-	void ParseError(const FPaContext& InCtx, const FText& Message) const;
-	void ParseWarning(const FPaContext& InCtx, const FToken& Token, const FText& Message) const;
-	void ParseWarning(const FPaContext& InCtx, const FText& Message) const;
+	void ParseError(const FPaContext& InCtx, const FToken& Token, const FString& Message) const;
+	void ParseError(const FPaContext& InCtx, const FString& Message) const;
+	void ParseWarning(const FPaContext& InCtx, const FToken& Token, const FString& Message) const;
+	void ParseWarning(const FPaContext& InCtx, const FString& Message) const;
 
 	bool PaTrySectionName(FPaContext& InCtx, FName& OutName);
 	bool PaSection(FPaContext& InCtx, FName Name);
@@ -251,5 +253,5 @@ private:
 
 	bool PaAttributeList(FPaContext& InCtx, TArray<FSupertalkAttribute>& OutAttributes);
 
-	FMessageLog* MessageLog;
+	FOutputDevice* Ar = nullptr;
 };

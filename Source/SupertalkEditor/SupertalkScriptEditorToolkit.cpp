@@ -8,20 +8,22 @@
 #include "MessageLogModule.h"
 #include "SSupertalkScriptAssetEditor.h"
 #include "SupertalkEditorSettings.h"
-#include "SupertalkParser.h"
+#include "SupertalkScriptCompiler.h"
 #include "SupertalkScriptEditorCommands.h"
 #include "EditorFramework/AssetImportData.h"
 #include "Framework/Notifications/NotificationManager.h"
-#include "Supertalk/Supertalk.h"
 #include "Widgets/Notifications/SNotificationList.h"
 
 #define LOCTEXT_NAMESPACE "FSupertalkScriptEditorToolkit"
 
 static const FName SupertalkAssetEditorAppIdentifier("SupertalkAssetEditorApp");
 static const FName SupertalkScriptEditorTabId("SupertalkScriptEditor");
+static const FName SupertalkCompilerOutputTabId("SupertalkCompilerOutput");
 
 FSupertalkScriptEditorToolkit::~FSupertalkScriptEditorToolkit()
 {
+	FSupertalkScriptCompiler::OnScriptCompiled.RemoveAll(this);
+
 	FReimportManager::Instance()->OnPreReimport().RemoveAll(this);
 	FReimportManager::Instance()->OnPostReimport().RemoveAll(this);
 }
@@ -30,10 +32,22 @@ void FSupertalkScriptEditorToolkit::Initialize(USupertalkScript* InScriptAsset, 
 {
 	ScriptAsset = InScriptAsset;
 
+	{
+		FMessageLogModule& MessageLogModule = FModuleManager::LoadModuleChecked<FMessageLogModule>("MessageLog");
+		FMessageLogInitializationOptions CompilerLogOptions;
+		CompilerLogOptions.bAllowClear = true;
+		CompilerLogOptions.bDiscardDuplicates = false;
+		CompilerLogOptions.bShowFilters = false;
+		CompilerLogOptions.bShowPages = false;
+		CompilerLogOptions.bScrollToBottom = false;
+		CompilerLogOptions.bShowInLogWindow = false;
+		CompilerLogListing = MessageLogModule.CreateLogListing("SupertalkCompiler", CompilerLogOptions);
+	}
+
 	FSupertalkScriptEditorCommands::Register();
 	BindCommands();
 
-	const TSharedRef<FTabManager::FLayout> Layout = FTabManager::NewLayout("Standalone_SupertalkScriptAssetEditor_v2")
+	const TSharedRef<FTabManager::FLayout> Layout = FTabManager::NewLayout("Standalone_SupertalkScriptAssetEditor_v3")
 		->AddArea
 		(
 			FTabManager::NewPrimaryArea()
@@ -41,8 +55,15 @@ void FSupertalkScriptEditorToolkit::Initialize(USupertalkScript* InScriptAsset, 
 				->Split
 				(
 				FTabManager::NewStack()
+					->SetSizeCoefficient(0.8)
 					->AddTab(SupertalkScriptEditorTabId, ETabState::OpenedTab)
 					->SetHideTabWell(true)
+				)
+				->Split
+				(
+					FTabManager::NewStack()
+					->SetSizeCoefficient(0.2f)
+					->AddTab(SupertalkCompilerOutputTabId, ETabState::OpenedTab)
 				)
 		);
 
@@ -63,7 +84,7 @@ void FSupertalkScriptEditorToolkit::Initialize(USupertalkScript* InScriptAsset, 
 			{
 				ToolbarBuilder.AddToolBarButton(FSupertalkScriptEditorCommands::Get().CompileScript);
 				ToolbarBuilder.AddSeparator();
-				ToolbarBuilder.AddToolBarButton(FSupertalkScriptEditorCommands::Get().OpenInExternalEditor);
+				ToolbarBuilder.AddToolBarButton(FSupertalkScriptEditorCommands::Get().OpenSourceFile);
 			}
 			ToolbarBuilder.EndSection();
 		}
@@ -79,6 +100,8 @@ void FSupertalkScriptEditorToolkit::Initialize(USupertalkScript* InScriptAsset, 
 	AddToolbarExtender(ToolbarExtender);
 
 	RegenerateMenusAndToolbars();
+
+	FSupertalkScriptCompiler::OnScriptCompiled.AddRaw(this, &FSupertalkScriptEditorToolkit::OnScriptCompiled);
 }
 
 FString FSupertalkScriptEditorToolkit::GetDocumentationLink() const
@@ -97,6 +120,10 @@ void FSupertalkScriptEditorToolkit::RegisterTabSpawners(const TSharedRef<FTabMan
 		.SetDisplayName(LOCTEXT("SupertalkScriptEditorTabName", "Supertalk Script Editor"))
 		.SetGroup(WorkspaceMenuCategoryRef)
 		.SetIcon(FSlateIcon(FAppStyle::GetAppStyleSetName(), "LevelEditor.Tabs.Viewports"));
+
+	InTabManager->RegisterTabSpawner(SupertalkCompilerOutputTabId, FOnSpawnTab::CreateSP(this, &FSupertalkScriptEditorToolkit::HandleTabManagerSpawnTab, SupertalkCompilerOutputTabId))
+		.SetDisplayName(LOCTEXT("SupertalkCompilerOutputTabName", "Compiler Output"))
+		.SetGroup(WorkspaceMenuCategoryRef);
 }
 
 void FSupertalkScriptEditorToolkit::UnregisterTabSpawners(const TSharedRef<FTabManager>& InTabManager)
@@ -104,6 +131,7 @@ void FSupertalkScriptEditorToolkit::UnregisterTabSpawners(const TSharedRef<FTabM
 	FAssetEditorToolkit::UnregisterTabSpawners(InTabManager);
 
 	InTabManager->UnregisterTabSpawner(SupertalkScriptEditorTabId);
+	InTabManager->UnregisterTabSpawner(SupertalkCompilerOutputTabId);
 }
 
 FText FSupertalkScriptEditorToolkit::GetBaseToolkitName() const
@@ -142,7 +170,7 @@ void FSupertalkScriptEditorToolkit::BindCommands()
 	const TSharedRef<FUICommandList>& UICommandList = GetToolkitCommands();
 
 	UICommandList->MapAction(
-		Commands.OpenInExternalEditor,
+		Commands.OpenSourceFile,
 		FExecuteAction::CreateUObject(ScriptAsset, &USupertalkScript::OpenSourceFileInExternalProgram),
 		FCanExecuteAction::CreateWeakLambda(ScriptAsset, [Script=ScriptAsset]()
 		{
@@ -161,34 +189,70 @@ void FSupertalkScriptEditorToolkit::BindCommands()
 
 TSharedRef<SDockTab> FSupertalkScriptEditorToolkit::HandleTabManagerSpawnTab(const FSpawnTabArgs& Args, FName TabIdentifier)
 {
-	TSharedPtr<SWidget> TabWidget = SNullWidget::NullWidget;
 	if (TabIdentifier == SupertalkScriptEditorTabId)
 	{
-		TabWidget = SNew(SSupertalkScriptAssetEditor, ScriptAsset)
-			.IsReadOnly(!GetDefault<USupertalkEditorSettings>()->bEnableScriptEditor || !ScriptAsset->bCanCompileFromSource);
+		return SNew(SDockTab)
+			.TabRole(ETabRole::PanelTab)
+			[
+				SNew(SSupertalkScriptAssetEditor, ScriptAsset)
+				.IsReadOnly(!GetDefault<USupertalkEditorSettings>()->bEnableScriptEditor || !ScriptAsset->bCanCompileFromSource)
+			];
+	}
+	else if (TabIdentifier == SupertalkCompilerOutputTabId)
+	{
+		FMessageLogModule& MessageLogModule = FModuleManager::LoadModuleChecked<FMessageLogModule>("MessageLog");
+		return SNew(SDockTab)
+			.TabRole(ETabRole::NomadTab)
+			[
+				MessageLogModule.CreateLogListingWidget(CompilerLogListing.ToSharedRef())
+			];
 	}
 
-	return SNew(SDockTab)
-		.TabRole(ETabRole::PanelTab)
-		[
-			TabWidget.ToSharedRef()
-		];
+	return SNew(SDockTab);
 }
 
 void FSupertalkScriptEditorToolkit::CompileScript()
 {
 	if (GetDefault<USupertalkEditorSettings>()->bEnableScriptEditor && IsValid(ScriptAsset))
 	{
-		if (FSupertalkParser::ParseIntoScript(ScriptAsset->GetName(), ScriptAsset->SourceData, ScriptAsset))
-		{
-			FNotificationInfo Notification(LOCTEXT("SupertalkCompileSuccess", "Script compiled successfully"));
-			Notification.bFireAndForget = true;
-			Notification.SubText = FText::FromString(ScriptAsset->GetName());
-			FSlateNotificationManager::Get().AddNotification(Notification)->SetCompletionState(SNotificationItem::CS_Success);
-		}
-
+		FSupertalkScriptCompiler::CompileScript(ScriptAsset);
 		ScriptAsset->MarkPackageDirty();
 	}
+}
+
+void FSupertalkScriptEditorToolkit::OnScriptCompiled(USupertalkScript* InScript, bool bResult, const TArray<FBufferedLine>& CompilerOutput)
+{
+	if (ScriptAsset != InScript || !IsValid(InScript))
+	{
+		return;
+	}
+
+	TArray<TSharedRef<FTokenizedMessage>> Messages;
+	Messages.Reserve(CompilerOutput.Num());
+	for (const FBufferedLine& Line : CompilerOutput)
+	{
+		EMessageSeverity::Type MessageSeverity;
+		switch (Line.Verbosity)
+		{
+		default:
+			MessageSeverity = EMessageSeverity::Info;
+			break;
+
+		case ELogVerbosity::Fatal:
+		case ELogVerbosity::Error:
+			MessageSeverity = EMessageSeverity::Error;
+			break;
+
+		case ELogVerbosity::Warning:
+			MessageSeverity = EMessageSeverity::Warning;
+			break;
+		}
+
+		Messages.Add(FTokenizedMessage::Create(MessageSeverity, FText::FromString(Line.Data)));
+	}
+
+	CompilerLogListing->ClearMessages();
+	CompilerLogListing->AddMessages(Messages, false);
 }
 
 
