@@ -26,7 +26,8 @@ public class SupertalkEditor : ModuleRules
 				"AssetTools",
 				"Engine",
 				"MessageLog",
-				"EditorStyle"
+				"EditorStyle",
+				"SourceControl",
 			});
 	}
 }

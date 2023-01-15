@@ -2,8 +2,9 @@ This file contains information about major changes and features.
 
 # Upcoming (0.7)
 
-* Better editor experience
+* Better (experimental) editor experience
   * Line numbers and compiler output within the script editor.
+  * Option to write out raw sts script files when saving a script asset in the script editor.
 
 # 0.6
 

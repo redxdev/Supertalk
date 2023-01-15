@@ -23,6 +23,11 @@ public:
 	virtual void AddReferencedObjects(FReferenceCollector& Collector) override;
 	virtual FString GetReferencerName() const override;
 
+protected:
+	virtual void SaveAsset_Execute() override;
+
+	bool SaveToSourceFile(const FString& Path);
+
 private:
 	void BindCommands();
 

@@ -5,13 +5,20 @@
 #include "Supertalk/SupertalkPlayer.h"
 #include "EditorReimportHandler.h"
 #include "IMessageLogListing.h"
+#include "ISourceControlModule.h"
+#include "ISourceControlProvider.h"
 #include "MessageLogModule.h"
+#include "SourceControlOperations.h"
 #include "SSupertalkScriptAssetEditor.h"
 #include "SupertalkEditorSettings.h"
 #include "SupertalkScriptCompiler.h"
 #include "SupertalkScriptEditorCommands.h"
+#include "UnrealEdGlobals.h"
+#include "AutoReimport/AutoReimportManager.h"
+#include "Editor/UnrealEdEngine.h"
 #include "EditorFramework/AssetImportData.h"
 #include "Framework/Notifications/NotificationManager.h"
+#include "Misc/FileHelper.h"
 #include "Widgets/Notifications/SNotificationList.h"
 
 #define LOCTEXT_NAMESPACE "FSupertalkScriptEditorToolkit"
@@ -162,6 +169,92 @@ void FSupertalkScriptEditorToolkit::AddReferencedObjects(FReferenceCollector& Co
 FString FSupertalkScriptEditorToolkit::GetReferencerName() const
 {
 	return TEXT("FSupertalkScriptEditorToolkit");
+}
+
+void FSupertalkScriptEditorToolkit::SaveAsset_Execute()
+{
+	FAssetEditorToolkit::SaveAsset_Execute();
+
+	// TODO: only do this if we saved successfully
+	const USupertalkEditorSettings* Settings = GetDefault<USupertalkEditorSettings>();
+	if (Settings->bEnableScriptEditor && Settings->bSaveSourceFilesInScriptEditor)
+	{
+		if (IsValid(ScriptAsset))
+		{
+			bool bIsNewFile = false;
+			FString RelativeFilename;
+			if (!IsValid(ScriptAsset->AssetImportData) || ScriptAsset->AssetImportData->SourceData.SourceFiles.IsEmpty())
+			{
+				RelativeFilename = ScriptAsset->GetName();
+				RelativeFilename.RemoveFromStart("ST_");
+				RelativeFilename.Append(".sts");
+				bIsNewFile = true;
+			}
+			else
+			{
+				RelativeFilename = ScriptAsset->AssetImportData->SourceData.SourceFiles[0].RelativeFilename;
+			}
+
+			const FString PackagePath = FPackageName::GetLongPackagePath(ScriptAsset->GetPathName()) / TEXT("");
+			const FString AbsoluteSrcPath = FPaths::ConvertRelativePathToFull(FPackageName::LongPackageNameToFilename(PackagePath));
+			const FString SrcFile = AbsoluteSrcPath / RelativeFilename;
+			if (SaveToSourceFile(SrcFile))
+			{
+				if (bIsNewFile)
+				{
+					if (!IsValid(ScriptAsset->AssetImportData))
+					{
+						ScriptAsset->AssetImportData = NewObject<UAssetImportData>(ScriptAsset, "AssetImportData");
+					}
+
+					ScriptAsset->AssetImportData->SourceData.Insert({ RelativeFilename });
+				}
+
+				FAssetImportInfo::FSourceFile& SourceFile = ScriptAsset->AssetImportData->SourceData.SourceFiles[0];
+				SourceFile.FileHash = FMD5Hash::HashFile(*SrcFile);
+				SourceFile.Timestamp = IFileManager::Get().GetTimeStamp(*SrcFile);
+
+				if (bIsNewFile)
+				{
+					GUnrealEd->AutoReimportManager->IgnoreNewFile(SrcFile);
+				}
+				else
+				{
+					GUnrealEd->AutoReimportManager->IgnoreFileModification(SrcFile);
+				}
+			}
+		}
+	}
+}
+
+bool FSupertalkScriptEditorToolkit::SaveToSourceFile(const FString& Path)
+{
+	ISourceControlModule& SourceControlModule = ISourceControlModule::Get();
+	ISourceControlProvider* SourceControlProvider = SourceControlModule.IsEnabled() ? &SourceControlModule.GetProvider() : nullptr;
+
+	TArray<FString> FilesToCheckout { Path };
+	bool bNeedsMarkForAdd = false;
+
+	if (SourceControlProvider)
+	{
+		if (FPaths::FileExists(Path))
+		{
+			SourceControlProvider->Execute(ISourceControlOperation::Create<FCheckOut>(), FilesToCheckout);
+		}
+		else
+		{
+			bNeedsMarkForAdd = true;
+		}
+	}
+
+	bool bResult = FFileHelper::SaveStringToFile(ScriptAsset->SourceData, *Path);
+
+	if (SourceControlProvider && bNeedsMarkForAdd)
+	{
+		SourceControlProvider->Execute(ISourceControlOperation::Create<FMarkForAdd>(), FilesToCheckout);
+	}
+
+	return bResult;
 }
 
 void FSupertalkScriptEditorToolkit::BindCommands()

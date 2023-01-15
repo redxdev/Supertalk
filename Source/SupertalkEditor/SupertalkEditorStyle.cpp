@@ -22,10 +22,10 @@ void FSupertalkEditorStyle::Initialize()
 	StyleSet->SetContentRoot( FPaths::EngineContentDir() / TEXT("Editor/Slate") );
 	StyleSet->SetCoreContentRoot(FPaths::EngineContentDir() / TEXT("Slate"));
 
-	const FSlateFontInfo Consolas10 = DEFAULT_FONT("Mono", 9);
+	const FSlateFontInfo EditorFont = DEFAULT_FONT("Mono", 11);
 
 	const FTextBlockStyle NormalText = FTextBlockStyle()
-		.SetFont(Consolas10)
+		.SetFont(EditorFont)
 		.SetColorAndOpacity(FLinearColor::White)
 		.SetShadowOffset(FVector2D::ZeroVector)
 		.SetShadowColorAndOpacity(FLinearColor::Black)
