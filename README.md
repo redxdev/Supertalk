@@ -255,6 +255,8 @@ This also lets you create Supertalk scripts within the editor without having to 
 
 This editor is *super* experimental and you may lose data when using it!
 
+![image](https://user-images.githubusercontent.com/472625/212571344-f7f56e0e-3f20-4758-ae14-95bf3ae393a8.png)
+
 ## Integration Guide
 
 This is an overview of the work necessary to integrate Supertalk into a project.
