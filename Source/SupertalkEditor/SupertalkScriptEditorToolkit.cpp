@@ -173,13 +173,11 @@ FString FSupertalkScriptEditorToolkit::GetReferencerName() const
 
 void FSupertalkScriptEditorToolkit::SaveAsset_Execute()
 {
-	FAssetEditorToolkit::SaveAsset_Execute();
-
-	// TODO: only do this if we saved successfully
+	// TODO: only do this if we receive confirmation
 	const USupertalkEditorSettings* Settings = GetDefault<USupertalkEditorSettings>();
 	if (Settings->bEnableScriptEditor && Settings->bSaveSourceFilesInScriptEditor)
 	{
-		if (IsValid(ScriptAsset))
+		if (IsValid(ScriptAsset) && ScriptAsset->bCanCompileFromSource)
 		{
 			bool bIsNewFile = false;
 			FString RelativeFilename;
@@ -225,6 +223,8 @@ void FSupertalkScriptEditorToolkit::SaveAsset_Execute()
 			}
 		}
 	}
+
+	FAssetEditorToolkit::SaveAsset_Execute();
 }
 
 bool FSupertalkScriptEditorToolkit::SaveToSourceFile(const FString& Path)
